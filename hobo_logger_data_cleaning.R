@@ -39,8 +39,33 @@ extract_depth <- function(fname) {
   return(re_match_lower)
 }
 
+
 depth_as_number <- function(depth){
   return(as.numeric(gsub("([0-9]+).*$", "\\1", depth)))
+}
+
+
+datetime_str_to_datetime <- function(df){
+  # TODO: THIS
+}
+
+
+homogenize_colnames <- function(cnames){
+  cond_name <- NA
+  for (cname in cnames){
+    if (startsWith(cname, "Temp")){
+      temp_name <- cname
+    } else if (startsWith(cname, "High Range")){
+      cond_name <- cname
+    } else if (startsWith(cname, "Date Time")){
+      datetime_name <- cname
+    }
+  }
+  cnames <- replace(cnames, which(cnames == temp_name), "temp")
+  cnames <- replace(cnames, which(cnames == cond_name), "conductivity_raw")
+  cnames <- replace(cnames, which(cnames == datetime_name), "datetime")
+  
+  return(cnames)
 }
 
 
@@ -68,8 +93,12 @@ for (fname in fnames){
       message('Depth:', depth, '\tFile: ', fname)
       possible_read_error <- tryCatch(data_tmp <- read.csv(fpath, skip = 1, check.names = FALSE),
                                       error = function(e) {skipped_files <<- c(skipped_files, fname)})  # TODO: this does not work yet...
-      if (!inherits(possible_read_error, "error")){  # TODO: This does not seem to work
+      if (!inherits(possible_read_error, "error")){ 
         tformat <- extract_gmt_format(data_tmp)
+        # TODO: fill missing conductivity
+        # TODO: adjust column names
+        # TODO: Transform datetime str to datetime
+        # TODO: Adjust time format
         
         if (depth == "3m"){
           data_03_m <- rbind(data_03_m, data_tmp)
@@ -104,3 +133,7 @@ if (length(skipped_files) > 0){
 # extract_depth(testname)
 # depth_as_number(extract_depth(testname))
 # str_to_lower("25M")
+
+colnames(data_03_m)
+a <- homogenize_colnames(colnames(data_03_m))
+b <- homogenize_colnames(colnames(data_25_m))
