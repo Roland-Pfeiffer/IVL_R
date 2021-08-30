@@ -15,14 +15,6 @@ extract_gmt_format <- function(df){
   return(dt_match)
 }
 
-fname_correct <- function(fname) {
-  re_match <- str_extract(fname, "^\\d{8}_\\d{1,2}(\\w|\\W)_")
-  if (is.na(re_match)) {
-    return(FALSE)
-  } else{
-    return(TRUE)
-}}
-
 
 missing_conductivity <- function(df){
   conductivity_missing <- TRUE
