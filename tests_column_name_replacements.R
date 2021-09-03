@@ -1,3 +1,4 @@
+library(stringr)
 
 l <- c('a', 'b', 'c', 'd')
 
@@ -22,3 +23,5 @@ for (cname in cnames){
   }
 }
 cnames <- replace(cnames, which(cnames == cond_name), "cond_raw")
+
+

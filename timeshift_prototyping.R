@@ -2,9 +2,10 @@ cat("\14")
 rm(list=ls())
 library(stringr)
 
-# NOTES
+# NOTES and TODOs
 # Use set() for the column names and check if they are similar.
-# Maybe add an option to add 
+# Maybe add an option to just append to an existing merged file.
+
 
 extract_gmt_format <- function(input_str){
   dt_match <- str_extract(input_str, "GMT[+|-]\\d\\d:\\d\\d")
