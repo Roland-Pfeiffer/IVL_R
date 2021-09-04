@@ -1,13 +1,14 @@
 rm(list=ls())
 cat("\014") 
 
-# install.packages("tidyverse")
-# install.packages("stringi")#
 library(tidyverse)
 library(stringr)  # Check if this also works on WIN. Otherwise use "stringi"
 library(tcltk)
 library(dplyr)
 library(ggplot2)
+library(lubridate)
+library(gridExtra)
+
 
 add_gmt_offset <- function(data_df){
   gmt_offset <- extract_gmt_format(data_df)
@@ -17,13 +18,11 @@ add_gmt_offset <- function(data_df){
   data_df
 }
 
-
 adjust_datetime <- function(dframe){
   dframe$gmt_correction_sec <- (2 - dframe$gmt_offset) * 60 * 60
   dframe$datetime <- as.POSIXct(dframe$datetime, format="%m/%d/%y %I:%M:%S %p", tz = "Europe/Paris")
   dframe$datetime <- dframe$datetime + dframe$gmt_correction_sec
   dframe$datetime <- as.POSIXct(dframe$datetime, format="%m/%d/%y %H:%M:%S")
-  # indexTZ(dframe$datetime) <- "Europe/Paris"
   dframe
 }
 
@@ -40,11 +39,6 @@ depth_as_number <- function(depth){
   return(as.numeric(gsub("([0-9]+).*$", "\\1", depth))) # Copied from the internet
 }
 
-
-dtime_to_string <- function(dframe){
-  dframe$datetime <- as.character(dframe$datetime)
-  dframe
-}
 
 extract_depth <- function(fname) {
   fname_lower <- str_to_lower(fname)
@@ -127,7 +121,8 @@ homogenize_colnames <- function(cnames){
 missing_conductivity <- function(df){
   conductivity_missing <- TRUE
   for (cname in colnames(df)){
-    if (startsWith(cname, "High Range") || startsWith(cname, "conductivity_raw")){
+    message(cname)
+    if (startsWith(cname, "High Range") || cname == "conductivity_raw"){
       conductivity_missing <- FALSE
     }
   }
@@ -152,8 +147,19 @@ get_colname <- function(dframe, name_start_str){
 # -------------------------------- SCRIPT SECTION ------------------------------
 
 # fpath_browse <- tk_choose.dir("Select folder with HOBO logger .csv files.")
-path_to_files <- "/media/findux/DATA/Documents/IVL/Data/HOBO logger data 2020"
-save_location <- "/media/findux/DATA/Documents/IVL/Data"
+PATH_TO_FILES <- "/media/findux/DATA/Documents/IVL/Data/HOBO logger data 2020"
+SAVE_LOCATION <- "/media/findux/DATA/Documents/IVL/Data"
+COND_THRESHOLD <- 400
+
+
+DELETE_OUTLIERS <- TRUE
+FNAME_OUTLIERS <- "file:///media/findux/DATA/Documents/IVL/Data/outliers.csv"
+
+# Colors:
+C03 <- "#33CCCC"
+C07 <- "#009999"
+C15 <- "#006666"
+C25 <- "#336666"
 
 
 # Initiate data frames
@@ -166,7 +172,7 @@ skipped_files <- list()
 processed_files <- list()
 
 # Read filenames
-fnames <- list.files(path_to_files)
+fnames <- list.files(PATH_TO_FILES)
 
 # Gobble up chaotically named data:
 for (fname in fnames){
@@ -175,7 +181,7 @@ for (fname in fnames){
     if (fname_contains_depth(fname)){
       depth <- extract_depth(fname)
       depth_num <- depth_as_number(depth)
-      fpath <- paste(path_to_files, fname, sep = "/")
+      fpath <- paste(PATH_TO_FILES, fname, sep = "/")
       message('Depth: ', depth, '\tFile: ', fname)
       
       # TODO: fix the error treatment
@@ -216,15 +222,16 @@ for (fname in fnames){
       }
     } else {
       skipped_files <- c(skipped_files, fname)
-}}}
+    }}}
 rm(list=c("data_tmp",
           "possible_read_error"))
 # Adjust datetime
 data_merged <- fm_pm_to_AM_FM(data_merged) # Turn fm/em into AM/PM
 data_merged <- adjust_datetime(data_merged)
 
-# Only keep relevant columns
-data_merged <- select(data_merged, datetime, temp, conductivity_raw, depth_m, file)
+
+# Drop columns no longer needed
+data_merged <- subset(data_merged, select = -c(gmt_offset, gmt_correction_sec))
 
 # Treat depth as factor 
 data_merged$depth_m <- as.factor(data_merged$depth_m)
@@ -236,21 +243,138 @@ data_merged <- distinct(data_merged, datetime, temp, conductivity_raw, depth_m,
 len_new <- dim(data_merged)[1]
 message("Removed ", len_old - len_new, " duplicate rows.")
 
+# Plot raw data
+plot_raw <- ggplot(data=data_merged, mapping = aes(x=datetime, y=temp, color=depth_m)) +
+  geom_line() + 
+  ggtitle("Raw data")
+
+# Plot raw
+plot_ylims <- c(min(data_merged$temp), max(data_merged$temp))
+plot_03m_raw <- ggplot(data = data_merged[data_merged$depth_m == 3, ], mapping = aes(x = datetime, y = temp)) + 
+  geom_line(color=C03 ) +
+  ggtitle("03 m raw") + 
+  xlab("Time") + ylab("Temp. (°C)") +
+  xlim(c(min(data_merged$datetime), max(data_merged$datetime))) + ylim(plot_ylims)
+plot_07m_raw <- ggplot(data = data_merged[data_merged$depth_m == 7, ], mapping = aes(x = datetime, y = temp)) + 
+  geom_line(color=C07 ) +
+  ggtitle("07 m raw") +
+  xlab("Time") + ylab("Temp. (°C)") +
+  xlim(c(min(data_merged$datetime), max(data_merged$datetime))) + ylim(plot_ylims)
+plot_15m_raw <- ggplot(data = data_merged[data_merged$depth_m == 15, ], mapping = aes(x = datetime, y = temp)) + 
+  geom_line(color=C15) +
+  ggtitle("15 m raw") +
+  xlab("Time") + ylab("Temp. (°C)") +
+  xlim(c(min(data_merged$datetime), max(data_merged$datetime))) + ylim(plot_ylims)
+plot_25m_raw <- ggplot(data = data_merged[data_merged$depth_m == 25, ], mapping = aes(x = datetime, y = temp)) + 
+  geom_line(color=C25 ) +
+  ggtitle("25 m raw") +
+  xlab("Time") + ylab("Temp. (°C)") +
+  xlim(c(min(data_merged$datetime), max(data_merged$datetime))) + ylim(plot_ylims)
+
+data_raw <- data_merged
+
+
+# testplot_01 <- ggplot(data = data_merged[data_merged$depth_m == 3, ], mapping = aes(x = datetime, y = temp)) + 
+#   geom_line(color=C03 ) +
+#   ggtitle("03 m raw") + xlab("Time") + ylab("Temp. (°C)") +
+#   xlim(c(min(data_merged$datetime), max(data_merged$datetime))) + ylim(c(-1, 25))
+
+# Remove conductivity below threshold rows, but keep the ones w/ NA
+c0 <- dim(data_merged)[1]
+cond_above_threshold <- data_merged[data_merged$conductivity_raw > COND_THRESHOLD, ]
+cond_missing <- data_merged[is.na(data_merged$conductivity_raw), ]
+data_merged <- rbind(cond_above_threshold, cond_missing)
+c1 <- dim(data_merged)[1]
+message("Removed ", c0 - c1, " rows where conductivity <= ", COND_THRESHOLD)
+
+# testplot_02 <- ggplot(data = data_merged[data_merged$depth_m == 3, ], mapping = aes(x = datetime, y = temp)) + 
+#   geom_line(color=C03 ) +
+#   ggtitle("03 m raw") + xlab("Time") + ylab("Temp. (°C)") +
+#   xlim(c(min(data_merged$datetime), max(data_merged$datetime))) + ylim(c(-1, 25))
+# # grid.arrange(testplot_01, testplot_02, ncol=1)
+
+
+
+# Remove rows with NA in temperature:
+temp_na_0 <- dim(data_merged)[1]
+data_merged <- data_merged[!is.na(data_merged$temp), ]
+temp_na_1 <- dim(data_merged)[1]
+message("Removed ", temp_na_0 - temp_na_1, " rows where temp = NA.")
+
+
+# Delete manually marked outliers
+if (DELETE_OUTLIERS){
+  data_merged$id <- paste(as.character(data_merged$datetime), data_merged$depth_m, sep = "_")
+  d1 <- dim(data_merged)[1]
+  outliers <- read.csv(FNAME_OUTLIERS)
+  outlier_ids <- outliers$id
+  outlier_indices <- c()
+  for (id_o in outlier_ids){
+    if (id_o %in% data_merged$id){
+      cur_loc <- which(data_merged$id == id_o)
+      outlier_indices <- c(outlier_indices, cur_loc)
+    }
+  }
+  data_merged <- data_merged[-c(outlier_indices),]
+  d2 <- dim(data_merged)[1]
+  message("Dropped ", d1 - d2, " rows of outliers.")
+}
+
+# Sort the data by datetime
+data_merged <- data_merged[order(data_merged$datetime),]
+
+# Add a numerical timestamp
+data_merged$month <- month(data_merged$datetime)
+data_merged$year <- year(data_merged$datetime)
+data_merged$day <- day(data_merged$datetime)
+data_merged$hour <- hour(data_merged$datetime)
+data_merged$timenum <- data_merged$year * 1000000 + data_merged$month * 10000 + data_merged$day * 100 + data_merged$hour
+
+
+# # Aggregate by datetime
+# conductivity <- subset(data_merged, select = c(conductivity_raw, timenum))
+# conductivity$conductivity_raw[is.na(conductivity$conductivity_raw)] <- 0
+# conductivity <- aggregate(conductivity, by = list(conductivity$timenum), FUN = "sum")
+# 
+# data_merged <- subset(data_merged, select = -c(file, id, year, month, day, hour))
+# data_merged$depth_m <- as.numeric(data_merged$depth_m)
+# data_merged$conductivity_raw[is.na(data_merged$conductivity_raw)] <- -99999
+data_merged <- aggregate(data_merged, by = list(data_merged$datetime, data_merged$depth_m), FUN = "mean")
+data_merged <- subset(data_merged, select = -c(depth_m, datetime))
+names(data_merged)[names(data_merged) == 'Group.2'] <- 'depth_m'
+names(data_merged)[names(data_merged) == 'Group.1'] <- 'datetime'
+data_merged$datetime <- as.POSIXct(data_merged$datetime, format = "%Y-%m-%d %H:%M:%S")
+
 data_wide <- reshape(data_merged, idvar = "datetime", timevar = "depth_m", direction = "wide")
 colnames(data_wide) <- str_replace(colnames(data_wide), "\\.", "_")
 
-# Writing output
-# data_merged <- dtime_to_string(data_merged)
-# dtime <- as.character(strptime(now(), format = "%Y-%m-%d"))
-# write_csv(data_merged, paste(save_location, "/hobo_data_merged_", dtime, ".csv", sep = ""))
 
-plot_15m <- ggplot(data = data_merged[data_merged$depth_m == 15, ], mapping = aes(x = datetime, y = temp, color = depth_m)) +
-  geom_line()
-plot_15m
-
+# Plotting 
+plot_ylims <- c(min(data_merged$temp), max(data_merged$temp))
 plot_all <- ggplot(data = data_merged, mapping = aes(x = datetime, y = temp, color = depth_m)) +
-  geom_line()
-plot_all
+  geom_line() + 
+  ggtitle("All depths")
+plot_03m <- ggplot(data = data_merged[data_merged$depth_m == 3, ], mapping = aes(x = datetime, y = temp)) + 
+  geom_line(color=C03) +
+  ggtitle(label = "03 m") + 
+  xlab("Time") + ylab("Temp. (°C)") +
+  xlim(c(min(data_merged$datetime), max(data_merged$datetime))) + ylim(plot_ylims)
+plot_07m <- ggplot(data = data_merged[data_merged$depth_m == 7, ], mapping = aes(x = datetime, y = temp)) + 
+  geom_line(color=C07 ) +
+  ggtitle("07 m") +
+  xlab("Time") + ylab("Temp. (°C)") +
+  xlim(c(min(data_merged$datetime), max(data_merged$datetime))) + ylim(plot_ylims)
+plot_15m <- ggplot(data = data_merged[data_merged$depth_m == 15, ], mapping = aes(x = datetime, y = temp)) + 
+  geom_line(color=C15) +
+  ggtitle("15 m") +
+  xlab("Time") + ylab("Temp. (°C)") +
+  xlim(c(min(data_merged$datetime), max(data_merged$datetime))) + ylim(plot_ylims)
+plot_25m <- ggplot(data = data_merged[data_merged$depth_m == 25, ], mapping = aes(x = datetime, y = temp)) + 
+  geom_line(color=C25 ) +
+  ggtitle("25 m") +
+  xlab("Time") + ylab("Temp. (°C)") +
+  xlim(c(min(data_merged$datetime), max(data_merged$datetime))) + ylim(plot_ylims)
+
 
 
 # Show info about processed files and removed duplicates:
@@ -264,3 +388,65 @@ n_skipped <- length(skipped_files)
 message("Processed ", length(processed_files), " files.\nMerged ", n_processed - n_skipped, " files (", n_skipped, " skipped).")
 message("Removed ", len_old - len_new, " duplicate rows.")
 
+
+plot_comparison_03 <- ggplot() +
+  geom_line(data = data_raw[data_raw$depth_m == 3, ], mapping = aes(x=datetime, y=temp), color="red") +
+  geom_line(data = data_merged[data_merged$depth_m == 3, ], mapping = aes(x=datetime, y=temp), color=C07) +
+  ggtitle(label = "03 m") + 
+  xlab("Time") + ylab("Temp. (°C)") +
+  xlim(c(min(data_merged$datetime), max(data_merged$datetime))) + ylim(plot_ylims)
+plot_comparison_07 <- ggplot() +
+  geom_line(data = data_raw[data_raw$depth_m == 7, ], mapping = aes(x=datetime, y=temp), color="red") +
+  geom_line(data = data_merged[data_merged$depth_m == 7, ], mapping = aes(x=datetime, y=temp), color=C07) +
+  ggtitle(label = "07 m") + 
+  xlab("Time") + ylab("Temp. (°C)") +
+  xlim(c(min(data_merged$datetime), max(data_merged$datetime))) + ylim(plot_ylims)
+plot_comparison_15 <- ggplot() +
+  geom_line(data = data_raw[data_raw$depth_m == 15, ], mapping = aes(x=datetime, y=temp), color="red") +
+  geom_line(data = data_merged[data_merged$depth_m == 15, ], mapping = aes(x=datetime, y=temp), color=C07) +
+  ggtitle(label = "15 m") + 
+  xlab("Time") + ylab("Temp. (°C)") +
+  xlim(c(min(data_merged$datetime), max(data_merged$datetime))) + ylim(plot_ylims)
+plot_comparison_25 <- ggplot() +
+  geom_line(data = data_raw[data_raw$depth_m == 25, ], mapping = aes(x=datetime, y=temp), color="red") +
+  geom_line(data = data_merged[data_merged$depth_m == 25, ], mapping = aes(x=datetime, y=temp), color=C07) +
+  ggtitle(label = "25 m") + 
+  xlab("Time") + ylab("Temp. (°C)") +
+  xlim(c(min(data_merged$datetime), max(data_merged$datetime))) + ylim(plot_ylims)
+
+
+# Save files
+data_merged$datetime <- as.character(data_merged$datetime)
+data_wide$datetime <- as.character(data_wide$datetime)
+date_now <- as.character(strptime(now(), format = "%Y-%m-%d"))
+write_csv(data_merged, paste(SAVE_LOCATION, "/hobo_data_merged_", date_now, ".csv", sep = ""))
+write_csv(data_wide, paste(SAVE_LOCATION, "/hobo_data_wide_", date_now, ".csv", sep = ""))
+
+# Save raw
+data_raw$datetime <- as.character(data_raw$datetime)
+date_now <- as.character(strptime(now(), format = "%Y-%m-%d"))
+write_csv(data_raw, paste(SAVE_LOCATION, "/hobo_data_raw_", date_now, ".csv", sep = ""))
+
+
+
+
+#grid.arrange(plot_03m_raw, plot_07m_raw, plot_15m_raw, plot_25m_raw, ncol=1)
+grid.arrange(plot_03m, plot_07m, plot_15m, plot_25m, ncol=1)
+grid.arrange(plot_comparison_03, plot_comparison_07, plot_comparison_15, plot_comparison_25, ncol=1)
+# plot_03m
+# plot_07m
+# plot_15m
+# plot_25m
+ # plot_raw
+# plot_all
+# ggsave(paste(SAVE_LOCATION, "plot_all.png", sep = "/"), plot_all)
+# plot_stacked <- ggplot(data = data_merged, aes(x = datetime, y = temp)) + 
+#   geom_line(aes(color = depth_m)) + 
+#   facet_grid(depth_m ~ ., scales = "free_y") + theme(legend.position = "none")
+
+# Export 25m Oct/Nov 2020 for Asa:
+data_export <- data_merged[which(data_merged$depth_m == 25 &
+                                    (month(data_merged$datetime) == 10 | month(data_merged$datetime) == 11)), ]
+data_export <- subset(data_export, select = -c(id, day, hour, timenum, file))
+savename <- paste(SAVE_LOCATION, "25_m_oct_nov_2020_data_for_Asa", sep = "/")
+write.csv(data_export, file = savename, row.names = FALSE)
