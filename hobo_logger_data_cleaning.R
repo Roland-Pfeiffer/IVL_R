@@ -156,6 +156,8 @@ COND_THRESHOLD <- 2000
 DELETE_OUTLIERS <- FALSE
 fname_outliers <- "file:///media/findux/DATA/Documents/IVL/Data/outliers.csv"
 
+# Fucktheduck
+
 # Initiate data frames
 # data_03_m <- data.frame()
 # data_07_m <- data.frame()
