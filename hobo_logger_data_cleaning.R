@@ -187,8 +187,7 @@ missing_conductivity <- function(df){
 # Adjust these according to your system and where your files are stored.
 # NOTE: Make sure to use forward slashes!
 PATH_TO_HOBO_FILES <- "/media/findux/DATA/Documents/IVL/Data/hobo_data_all/"
-PATH_TO_KBERG_FILES <- "/media/findux/DATA/Documents/IVL/Data/Kberg_weather_data/"
-SAVE_LOCATION <- "/media/findux/DATA/Documents/IVL/Data/hobo_out/hobo_data"
+SAVE_LOCATION <- "/media/findux/DATA/Documents/IVL/Data/hobo_out/"
 PATH_TO_OUTLIER_FILE <- "file:///media/findux/DATA/Documents/IVL/Data/outliers.csv"
 
 # Set cutoff value for raw conductivity. Everything below is discarded.
@@ -208,55 +207,53 @@ data_merged <- data.frame()
 skipped_files <- c()
 processed_files <- c()
 
-# Read filenames into a list called fnames:
-fnames <- list.files(PATH_TO_HOBO_FILES)
-fnames_kberg <- list.files(PATH_TO_KBERG_FILES)
+# Read filenames into a list called fnames.
+# Only use the ones that have the pattern .csv at the end ($)
+fnames <- list.files(PATH_TO_HOBO_FILES, pattern = ".csv$")
 
 # Go over every single filename in fnames
 for (fname in fnames){
-  # Check if it ends with ".csv" and then add it to the list of processed files
-  if (endsWith(fname, ".csv")){
-    processed_files[length(processed_files) + 1] <- fname
-    # If filename contains depth information, continue processing it.
-    if (fname_contains_depth(fname)){
-      depth <- extract_depth(fname)
-      depth_num <- depth_as_number(depth)
-      full_path_to_file <- paste(PATH_TO_FILES, fname, sep = "/")
-      data_tmp <- read.csv(full_path_to_file, skip = 1, check.names = FALSE)
-      # TODO: add an error catch
-      
-      message('Depth: ', depth, '\tFile: ', fname)
-      
-      # Get temperature units. Needs to be done before colnames are changed.
-      temperature_units <- get_temp_unit(data_tmp)
-      # Get GMT offset. Needs to be done before colnames are changed.
-      data_tmp <- add_gmt_offset(data_tmp)
-      
-      # Adjust the column names for datetime, temp, and (if available) conductivity
-      colnames(data_tmp) <- homogenize_colnames(colnames(data_tmp))
-      
-      # Correct Fahrenheit to Celsius if necessary.
-      if (temperature_units == "F"){
-        message("(Temperature is in Fahrenheit and will be converted to Celsius.)")
-        data_tmp$temp <- convert_f_to_c(data_tmp$temp)
-      }
-  
-      data_tmp <- fill_cond_if_missing(data_tmp)
-      data_tmp$conductivity_raw <- as.numeric(data_tmp$conductivity_raw)
-      data_tmp <- select(data_tmp, datetime, temp, conductivity_raw, gmt_offset)
-      data_tmp$depth_m <- depth_num
-      
-      # Add a column w/ filename to see where the data came from.
-      data_tmp$file <- fname
-      
-      # Add currently processed data to the data_merged data frame
-      data_merged <- rbind(data_merged, data_tmp)
-    } else {
-      # If filename didn't contain depth info, add to list of skipped files.
-      skipped_files[length(skipped_files) + 1] <- fname
+  processed_files[length(processed_files) + 1] <- fname
+  # If filename contains depth information, continue processing it.
+  if (fname_contains_depth(fname)){
+    depth <- extract_depth(fname)
+    depth_num <- depth_as_number(depth)
+    full_path_to_file <- paste(PATH_TO_HOBO_FILES, fname, sep = "/")
+    data_tmp <- read.csv(full_path_to_file, skip = 1, check.names = FALSE)
+    # TODO: add an error catch
+    
+    message('Depth: ', depth, '\tFile: ', fname)
+    
+    # Get temperature units. Needs to be done before colnames are changed.
+    temperature_units <- get_temp_unit(data_tmp)
+    # Get GMT offset. Needs to be done before colnames are changed.
+    data_tmp <- add_gmt_offset(data_tmp)
+    
+    # Adjust the column names for datetime, temp, and (if available) conductivity
+    colnames(data_tmp) <- homogenize_colnames(colnames(data_tmp))
+    
+    # Correct Fahrenheit to Celsius if necessary.
+    if (temperature_units == "F"){
+      message("(Temperature is in Fahrenheit and will be converted to Celsius.)")
+      data_tmp$temp <- convert_f_to_c(data_tmp$temp)
     }
+
+    data_tmp <- fill_cond_if_missing(data_tmp)
+    data_tmp$conductivity_raw <- as.numeric(data_tmp$conductivity_raw)
+    data_tmp <- select(data_tmp, datetime, temp, conductivity_raw, gmt_offset)
+    data_tmp$depth_m <- depth_num
+    
+    # Add a column w/ filename to see where the data came from.
+    data_tmp$file <- fname
+    
+    # Add currently processed data to the data_merged data frame
+    data_merged <- rbind(data_merged, data_tmp)
+  } else {
+    # If filename didn't contain depth info, add to list of skipped files.
+    skipped_files[length(skipped_files) + 1] <- fname
   }
 }
+rm(data_tmp)
 
 
 # Show info about skipped and processed files
@@ -285,47 +282,47 @@ data_merged <- distinct(data_merged, datetime, temp, conductivity_raw, depth_m,
 len_new <- dim(data_merged)[1]
 message("Removed ", len_old - len_new, " duplicate rows.")
 
-# Plot raw temperature data
+# Plot lims
 xlims <- c(min(data_merged$datetime), max(data_merged$datetime))
 ylims <- c(min(data_merged$temp), max(data_merged$temp))
 
-plot_temp_raw <- ggplot(data=data_merged,
-                        mapping = aes(x=datetime, y=temp, color=depth_m)) +
-  geom_line() + 
-  ggtitle("Raw data") + 
-  xlim(xlims) 
-
-plot_temp_03m_raw <- ggplot(data = data_merged[data_merged$depth_m == 3, ],
-                            mapping = aes(x = datetime, y = temp)) + 
-  geom_line(color="#33CCCC" ) +
-  ggtitle("03 m raw") + 
-  xlab("Time") + ylab("Temp. (°C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-plot_temp_07m_raw <- ggplot(data = data_merged[data_merged$depth_m == 7, ],
-                            mapping = aes(x = datetime, y = temp)) + 
-  geom_line(color="#009999" ) +
-  ggtitle("07 m raw") +
-  xlab("Time") + ylab("Temp. (°C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-plot_temp_15m_raw <- ggplot(data = data_merged[data_merged$depth_m == 15, ],
-                            mapping = aes(x = datetime, y = temp)) + 
-  geom_line(color="#006666" ) +
-  ggtitle("15 m raw") +
-  xlab("Time") + ylab("Temp. (°C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-plot_temp_25m_raw <- ggplot(data = data_merged[data_merged$depth_m == 25, ],
-                            mapping = aes(x = datetime, y = temp)) + 
-  geom_line(color="#003333" ) +
-  ggtitle("25 m raw") +
-  xlab("Time") + ylab("Temp. (°C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+# plot_temp_raw <- ggplot(data=data_merged,
+#                         mapping = aes(x=datetime, y=temp, color=depth_m)) +
+#   geom_line() + 
+#   ggtitle("Raw data") + 
+#   xlim(xlims) 
+# 
+# plot_temp_03m_raw <- ggplot(data = data_merged[data_merged$depth_m == 3, ],
+#                             mapping = aes(x = datetime, y = temp)) + 
+#   geom_line(color="#33CCCC" ) +
+#   ggtitle("03 m raw") + 
+#   xlab("Time") + ylab("Temp. (°C)") +
+#   scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
+#   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+# 
+# plot_temp_07m_raw <- ggplot(data = data_merged[data_merged$depth_m == 7, ],
+#                             mapping = aes(x = datetime, y = temp)) + 
+#   geom_line(color="#009999" ) +
+#   ggtitle("07 m raw") +
+#   xlab("Time") + ylab("Temp. (°C)") +
+#   scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
+#   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+# 
+# plot_temp_15m_raw <- ggplot(data = data_merged[data_merged$depth_m == 15, ],
+#                             mapping = aes(x = datetime, y = temp)) + 
+#   geom_line(color="#006666" ) +
+#   ggtitle("15 m raw") +
+#   xlab("Time") + ylab("Temp. (°C)") +
+#   scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
+#   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+# 
+# plot_temp_25m_raw <- ggplot(data = data_merged[data_merged$depth_m == 25, ],
+#                             mapping = aes(x = datetime, y = temp)) + 
+#   geom_line(color="#003333" ) +
+#   ggtitle("25 m raw") +
+#   xlab("Time") + ylab("Temp. (°C)") +
+#   scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
+#   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 
 # Sort the data by datetime
@@ -365,7 +362,7 @@ if (DELETE_OUTLIERS){
   data_merged$id <- paste(as.character(data_merged$datetime),
                           data_merged$depth_m, sep = "_")
   d1 <- dim(data_merged)[1]
-  outliers <- read.csv(fname_outliers)
+  outliers <- read.csv(PATH_TO_OUTLIER_FILE)
   outliers$id <- paste(outliers$datetime, outliers$depth, sep = "_")
   outlier_ids <- outliers$id
   outlier_indices <- c()
@@ -384,7 +381,7 @@ if (DELETE_OUTLIERS){
 # # Aggregate data NOTE: Be patient, this might take a while.
 # message("Aggregating data. This might take a while...")
 # data_merged <- aggregate(data_merged, by = list(data_merged$datetime,
-#                                                 data_merged$depth_m), FUN = "mean")
+#                                                 data_merged$depth_m), FUN = "mean", na.rm = TRUE)
 # # Drop columns with NAs that were created during aggregate()
 # data_merged <- subset(data_merged, select = -c(depth_m, datetime, file, id))
 # # Update the column names
@@ -537,31 +534,38 @@ plot_temp_comparison_25m <- ggplot() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 # Save files
-data_merged$datetime <- as.character(data_merged$datetime)
+# data_merged$datetime <- as.character(data_merged$datetime)
 data_wide$datetime <- as.character(data_wide$datetime)
 date_now <- as.character(strptime(now(), format = "%Y-%m-%d"))
-write_csv(data_merged, paste(SAVE_LOCATION, "_merged_", date_now, ".csv", sep = ""))
-write_csv(data_wide, paste(SAVE_LOCATION, "_wide_", date_now, ".csv", sep = ""))
+write_csv(data_merged, paste(SAVE_LOCATION, "hobo_data_merged_", date_now, ".csv", sep = ""))
+write_csv(data_wide, paste(SAVE_LOCATION, "hobo_data_wide_", date_now, ".csv", sep = ""))
 data_raw$datetime <- as.character(data_raw$datetime)
 date_now <- as.character(strptime(now(), format = "%Y-%m-%d"))
-write_csv(data_raw, paste(SAVE_LOCATION, "_raw_", date_now, ".csv", sep = ""))
+write_csv(data_raw, paste(SAVE_LOCATION, "hobo_data_raw_", date_now, ".csv", sep = ""))
 
 
 # grid.arrange(plot_03m_raw, plot_07m_raw, plot_15m_raw, plot_25m_raw, ncol=1)
 # grid.arrange(plot_temp_comparison_03m, plot_temp_comparison_07m,
 #              plot_temp_comparison_15m, plot_temp_comparison_25m,
 #              ncol=1)
-a <- grid.arrange(plot_temp_comparison_03m, plot_temp_comparison_15m,
-             plot_cond_03m, plot_cond_15m,
-             plot_temp_comparison_07m, plot_temp_comparison_25m,
-             plot_cond_07m, plot_cond_25m,
-             ncol=2)
+# a <- grid.arrange(plot_temp_comparison_03m, plot_temp_comparison_15m,
+#              plot_cond_03m, plot_cond_15m,
+#              plot_temp_comparison_07m, plot_temp_comparison_25m,
+#              plot_cond_07m, plot_cond_25m,
+#              ncol=2)
 # plot_15m
 # plot_raw
 # plot_all
-ggsave(filename = paste(SAVE_LOCATION, "plot_comparison.png", sep = "_"),
-       plot = a,
-       width = 420, height = 297, units = "mm")
+# ggsave(filename = paste(SAVE_LOCATION, "plot_comparison.png", sep = "_"),
+#        plot = a,
+#        width = 420, height = 297, units = "mm")
 # plot_stacked <- ggplot(data = data_merged, aes(x = datetime, y = temp)) + 
 #   geom_line(aes(color = depth_m)) + 
 #   facet_grid(depth_m ~ ., scales = "free_y") + theme(legend.position = "none")
+
+
+
+rm(list = c("c0", "C03", "C07", "c1", "C15", "C25", "d1", "d2", "date_now", "depth", "depth_num",
+            "fname", "fnames", "full_path_to_file", "i", "id_o", "len_new", "len_old",
+            "n_processed", "n_skipped", "outlier_i", "outlier_ids", "outlier_indices",
+            "temp_na_0", "temp_na_1", "temperature_units", "xlims", "ylims"))
