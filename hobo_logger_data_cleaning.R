@@ -20,9 +20,13 @@ library(gridExtra)
 Sys.setlocale("LC_TIME", "en_GB.UTF-8")
 
 # -------------------------- FUNCTIONS -----------------------------------------
-# Function defititions who will be used in the script section below.
+# Functions that will be used in the script section below.
 
 add_gmt_offset <- function(data_df){
+  # Adds a column to the dataset that contains the gmt offset information 
+  # Contained in the filenames.
+  # Note that this needs to be run before column names are homogenised and lose
+  # this info.
   gmt_offset <- extract_gmt_format(data_df)
   offset_numstr <-substr(gmt_offset, 4,6)
   gmt_offset_num <- as.numeric(offset_numstr)
@@ -32,6 +36,7 @@ add_gmt_offset <- function(data_df){
 
 
 adjust_gmt_offset <- function(dframe){
+  # Adjusts the datetime based on the GMT offset column.
   dframe$gmt_correction_sec <- (2 - dframe$gmt_offset) * 60 * 60
   dframe$datetime <- dframe$datetime + dframe$gmt_correction_sec
   dframe <- subset(dframe, select = -c(gmt_correction_sec))
@@ -40,6 +45,7 @@ adjust_gmt_offset <- function(dframe){
 
 
 convert_f_to_c <- function(deg_F){
+  # Converts degrees Fahrenheit to degrees Celsius.
   # Formula from:
   # https://www.metric-conversions.org/sv/temperatur/fahrenheit-till-celsius.htm
   deg_C <- (deg_F - 32) / 1.8
@@ -47,12 +53,17 @@ convert_f_to_c <- function(deg_F){
 }
 
 
-depth_as_number <- function(depth){
-  return(as.numeric(gsub("([0-9]+).*$", "\\1", depth))) # Copied from the internet
+depth_as_number <- function(depth_str){
+  # Takes a character string, e.g. "5m" and returns it as a number: 5.
+  return(as.numeric(gsub("([0-9]+).*$", "\\1", depth_str))) # Copied from the internet
 }
 
 
 extract_depth <- function(fname) {
+  # Extracts depth information from the filename.
+  # This includes the following patterns:
+  #   0m - 99m
+  #   surface
   fname_lower <- str_to_lower(fname)
   re_match <- str_extract(fname_lower, "\\d{1,2}m")
   re_match_surface <- str_extract(fname_lower, "surface")
@@ -64,6 +75,7 @@ extract_depth <- function(fname) {
 
 
 extract_gmt_format <- function(data_df){
+  # Returns the GMT offset string, e.g. "GMT+02:00"
   for (cname in colnames(data_df)){
     if (startsWith(cname, "Date Time")){
       dt_match_str <- str_extract(cname, "GMT[+|-]\\d\\d:\\d\\d")
@@ -73,7 +85,8 @@ extract_gmt_format <- function(data_df){
 
 
 fill_cond_if_missing <- function(dframe){
-  # This function does not work when used in pipes, for whatever reason.
+  # Creates a conductivity column filled with NA if there is no conductivity data.
+  # NOTE: This function does not seem to work in pipes
   if ("conductivity_raw" %in% colnames(dframe)){
     # (Do nothing, conductivity column already exists)
   } else {
@@ -85,6 +98,8 @@ fill_cond_if_missing <- function(dframe){
 
 
 fm_pm_to_AM_FM <- function(df){
+  # Changes fm/em to AM/EM in df$datetime.
+  # Requires a character variable named "datetime" to be in the dataframe.
   df$datetime <- str_replace(df$datetime, "em", "PM")
   df$datetime <- str_replace(df$datetime, "fm", "AM")
   return(df)
@@ -92,8 +107,11 @@ fm_pm_to_AM_FM <- function(df){
 
 
 fname_contains_depth <- function(fname_str) {
+  # Returns TRUE if the filename contains depth info. Uses regexes to look for
+  # 2 decimals followed by "m", or the string "surface".
+  # Returns FALSE otherwise.
   fname_lower <- str_to_lower(fname_str)
-  re_match <- str_extract(fname_lower, "\\d{1,2}m")  # TODO: Check if this 1,2 is still ok
+  re_match <- str_extract(fname_lower, "\\d{1,2}m")
   re_match_surface <- str_extract(fname_lower, "surface")
   if (is.na(re_match) && is.na(re_match_surface)){
     FALSE
@@ -102,14 +120,31 @@ fname_contains_depth <- function(fname_str) {
   }}
 
 
+get_colname <- function(dframe, name_start_str){
+  # Returns the full column name based on a string fragment at the beginning.
+  out <- NA
+  for (cname in colnames(dframe)){
+    if (startsWith(cname, name_start_str)){
+      out <- cname
+    }
+  }
+  out
+}
+
+
 get_temp_unit <- function(dframe){
-  temp_cname <- get_colname(dframe, "Temp")
+  # Returns the temperature units (F or C) from the column name.
+  temp_cname <- get_colname(dframe, "Temp")  # get_colname() defined above.
   temp_unit <- str_match(temp_cname, "Temp, °(F|C)")[,2]
   temp_unit
 }
 
 
 homogenize_colnames <- function(cnames){
+  # Gives new, standardised column names to the dataframe:
+  #   datetime, temp, conductivity_raw
+  # conductivity_raw will be skipped if there is not conductivity data.
+  
   cond_name <- NA  # Necessary for later in the pipe below so cond. can be skipped
   for (cname in cnames){
     if (startsWith(cname, "Temp")){
@@ -131,6 +166,7 @@ homogenize_colnames <- function(cnames){
 
 
 missing_conductivity <- function(df){
+  # Returns TRUE if dataframe is missing conductivity data, else returns FALSE.
   conductivity_missing <- TRUE
   for (cname in colnames(df)){
     if (startsWith(cname, "High Range") || startsWith(cname, "conductivity_raw")){
@@ -141,30 +177,25 @@ missing_conductivity <- function(df){
 }
 
 
-get_colname <- function(dframe, name_start_str){
-  out <- NA
-  for (cname in colnames(dframe)){
-    if (startsWith(cname, name_start_str)){
-      out <- cname
-    }
-  }
-  out
-}
+
 
 
 
 # -------------------------------- SCRIPT SECTION ------------------------------
 
 
-
-# fpath_browse <- tk_choose.dir("Select folder with HOBO logger .csv files.")
-PATH_TO_FILES <- "/media/findux/DATA/Documents/IVL/Data/hobo_data_all/"
+# Adjust these according to your system and where your files are stored.
+# NOTE: Make sure to use forward slashes!
+PATH_TO_HOBO_FILES <- "/media/findux/DATA/Documents/IVL/Data/hobo_data_all/"
+PATH_TO_KBERG_FILES <- "/media/findux/DATA/Documents/IVL/Data/Kberg_weather_data/"
 SAVE_LOCATION <- "/media/findux/DATA/Documents/IVL/Data/hobo_out/hobo_data"
+PATH_TO_OUTLIER_FILE <- "file:///media/findux/DATA/Documents/IVL/Data/outliers.csv"
+
+# Set cutoff value for raw conductivity. Everything below is discarded.
 COND_THRESHOLD <- 800
 
-
+# Delete manually listed outliers in "outliers.csv" file.
 DELETE_OUTLIERS <- TRUE
-fname_outliers <- "file:///media/findux/DATA/Documents/IVL/Data/outliers.csv"
 
 # Colors:
 C03 <- "#33CCCC"
@@ -178,7 +209,8 @@ skipped_files <- c()
 processed_files <- c()
 
 # Read filenames into a list called fnames:
-fnames <- list.files(PATH_TO_FILES)
+fnames <- list.files(PATH_TO_HOBO_FILES)
+fnames_kberg <- list.files(PATH_TO_KBERG_FILES)
 
 # Go over every single filename in fnames
 for (fname in fnames){
