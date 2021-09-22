@@ -41,7 +41,7 @@ data_kberg$SurfaceWaterTemperatureLabC <- as.numeric(data_kberg$SurfaceWaterTemp
 data_kberg <- remove_999(data_kberg)
 
 
-
+# Create category column for aggregating
 data_kberg$aggregate_value <- as.factor(paste(year(data_kberg$LocaltimeCET),
                                     str_pad(month(data_kberg$LocaltimeCET), 2, pad = "0"),
                                     str_pad(day(data_kberg$LocaltimeCET), 2, pad = "0"),
@@ -109,11 +109,11 @@ grid.arrange(temp_jetty, sal_jetty,
 
 
 summary(data_kberg)
-# time_now <- format(now(), format = "%Y-%m-%d")
-# write.csv(data_kberg,
-#           file = paste(SAVE_LOCATION, "/kberg_data_", time_now, ".csv", sep = ""))
-# rm(list = c("PATH_TO_KBERG_FILES", "fnames_kberg", "kberg_paths", "jetty",
-#             "rig07", "rig25"))
+time_now <- format(now(), format = "%Y-%m-%d")
+write.csv(data_kberg,
+          file = paste(SAVE_LOCATION, "/kberg_data_", time_now, ".csv", sep = ""))
+rm(list = c("PATH_TO_KBERG_FILES", "fnames_kberg", "kberg_paths", "jetty",
+            "rig07", "rig25"))
 
 a <- read.csv("file:///media/findux/DATA/Documents/IVL/Data/minus999test.csv")
 a <- minus_999_to_NA(a)
