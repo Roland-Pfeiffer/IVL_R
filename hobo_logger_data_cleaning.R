@@ -196,53 +196,71 @@ homogenize_colnames <- function(cnames){
 data_merged <- data.frame()
 skipped_files <- c()
 processed_files <- c()
+merged_files <- c()
 
 # Read filenames into a list called fnames.
 # Only use the ones that have the pattern .csv at the end ($)
 fnames <- list.files(PATH_TO_HOBO_FILES, pattern = ".csv$")
 
-# Go over every single filename in fnames
+
+# Extract fnames w/ depth info:
+fnames_with_depth <- c()
 for (fname in fnames){
   processed_files[length(processed_files) + 1] <- fname
-  # If filename contains depth information, continue processing it.
   if (fname_contains_depth(fname)){
-    depth <- extract_depth(fname)
-    depth_num <- depth_as_number(depth)
-    full_path_to_file <- paste(PATH_TO_HOBO_FILES, fname, sep = "/")
-    
-    # TODO: add an error catch
-    data_tmp <- read.csv(full_path_to_file, skip = 1, check.names = FALSE)
-    
-    message('Depth: ', depth, '\tFile: ', fname)
-    
-    # Get temperature units. Needs to be done before colnames are changed.
-    temperature_units <- get_temp_unit(data_tmp)
-    # Get GMT offset. Needs to be done before colnames are changed.
-    data_tmp <- add_gmt_offset(data_tmp)
-    
-    # Adjust the column names for datetime, temp, and (if available) conductivity
-    colnames(data_tmp) <- homogenize_colnames(colnames(data_tmp))
-    
-    # Correct Fahrenheit to Celsius if necessary.
-    if (temperature_units == "F"){
-      message("(Temperature is in Fahrenheit and will be converted to Celsius.)")
-      data_tmp$temp <- convert_f_to_c(data_tmp$temp)
-    }
-
-    data_tmp <- fill_cond_if_missing(data_tmp)
-    data_tmp$conductivity_raw <- as.numeric(data_tmp$conductivity_raw)
-    data_tmp <- select(data_tmp, datetime, temp, conductivity_raw, gmt_offset)
-    data_tmp$depth_m <- depth_num
-    
-    # Add a column w/ filename to see where the data came from.
-    data_tmp$file <- fname
-    
-    # Add currently processed data to the data_merged data frame
-    data_merged <- rbind(data_merged, data_tmp)
+    fnames_with_depth[length(fnames_with_depth) + 1] <- fname
   } else {
-    # If filename didn't contain depth info, add to list of skipped files.
     skipped_files[length(skipped_files) + 1] <- fname
   }
+}
+# Overwrite old fnames
+fnames <- fnames_with_depth
+
+for (fname in fnames){
+  depth <- extract_depth(fname)
+  depth_num <- depth_as_number(depth)
+  full_path_to_file <- paste(PATH_TO_HOBO_FILES, fname, sep = "/")
+  
+  # Try to read the file, if it fails, store the error in the variable.
+  data_tmp <-  tryCatch(read.csv(full_path_to_file, skip = 1, check.names = FALSE),
+                           error = function(e) e)
+  
+  # Check if there is an error stored in the variable
+  if (inherits(data_tmp, "error")){
+    message("Encountered error when reading ", fname, ". File skipped.")
+    skipped_files[length(skipped_files) + 1] <- fname
+    # Skip the rest of this for-loop and jump to the next iteration.
+    next
+  }
+  
+  # If no error encountered, continue as planned
+  message('Depth: ', depth, '\tFile: ', fname)
+  
+  # Get temperature units. Needs to be done before colnames are changed.
+  temperature_units <- get_temp_unit(data_tmp)
+  # Get GMT offset. Needs to be done before colnames are changed.
+  data_tmp <- add_gmt_offset(data_tmp)
+  
+  # Adjust the column names for datetime, temp, and (if available) conductivity
+  colnames(data_tmp) <- homogenize_colnames(colnames(data_tmp))
+  
+  # Correct Fahrenheit to Celsius if necessary.
+  if (temperature_units == "F"){
+    message("(Temperature is in Fahrenheit and will be converted to Celsius.)")
+    data_tmp$temp <- convert_f_to_c(data_tmp$temp)
+  }
+
+  data_tmp <- fill_cond_if_missing(data_tmp)
+  data_tmp$conductivity_raw <- as.numeric(data_tmp$conductivity_raw)
+  data_tmp <- select(data_tmp, datetime, temp, conductivity_raw, gmt_offset)
+  data_tmp$depth_m <- depth_num
+  
+  # Add a column w/ filename to see where the data came from.
+  data_tmp$file <- fname
+  
+  # Add currently processed data to the data_merged data frame
+  data_merged <- rbind(data_merged, data_tmp)
+  merged_files[length(merged_files) + 1] <- fname
 }
 rm(data_tmp)
 
@@ -252,7 +270,7 @@ rm(data_tmp)
 n_processed <- length(processed_files)
 n_skipped <- length(skipped_files)
 message("Processed ", length(processed_files), " files.\nMerged ",
-        n_processed - n_skipped, " files (", n_skipped, " skipped).")
+        length(merged_files), " files (", n_skipped, " skipped).")
 if (length(skipped_files) > 0){
   for (fname in skipped_files){
     message("Skipped csv file: ", fname)
