@@ -1,19 +1,23 @@
 rm(list=ls())# Clear workspace (aka work environment)
 cat("\014") # Clear the console
-library(tidyverse)
-library(stringr)  # Check if this works on Windows. Otherwise perhaps use "stringi"
-library(tcltk)
+
 library(dplyr)
 library(ggplot2)
-library(lubridate)
+library(glue)
 library(gridExtra)
+library(logging)
+library(lubridate)
+library(stringr)  # Check if this works on Windows. Otherwise perhaps use "stringi"
+library(tcltk)
+library(tidyverse)
+
 Sys.setlocale("LC_TIME", "en_GB.UTF-8")
 
 
 
 # -------------------------------- SCRIPT SETTINGS ------------------------------
 
-
+offsets <- c()
 
 # Adjust these according to your system and where your files are stored.
 
@@ -39,6 +43,19 @@ C03 <- "#33CCCC"
 C07 <- "#009999"
 C15 <- "#006666"
 C25 <- "#336666"
+
+# Initiate logging
+now_clean <- format(now(), format = "%Y-%m-%d_%H-%M")
+log_var <- c(paste("Datetime:", now()))
+log_var[length(log_var) + 1] <- paste("Hobo files:", PATH_TO_HOBO_FILES)
+log_var[length(log_var) + 1] <- paste("Save directory: ", SAVE_LOCATION)
+log_var[length(log_var) + 1] <- paste("Outlier file:", PATH_TO_OUTLIER_FILE)
+log_var[length(log_var) + 1] <- paste("Aggregating:", DO_AGGREGATION)
+log_var[length(log_var) + 1] <- paste("Aggregating over hrs:", AGGREGATE_OVER_MULTIPLE_HRS)
+log_var[length(log_var) + 1] <- paste("Conductivity threshold:", COND_THRESHOLD)
+log_var[length(log_var) + 1] <- paste("SD-based outlier removal:", SD_BASED_OUTLIER_DELETION)
+log_var[length(log_var) + 1] <- paste("SD thgreshold:", SD_THRESHOLD)
+log_var[length(log_var) + 1] <- paste("Time interval SD was based on:", SD_BASIS, "\n\n")
 
 # -------------------------- FUNCTIONS -----------------------------------------
 
@@ -75,6 +92,17 @@ convert_f_to_c <- function(deg_F){
 }
 
 
+datetime_col_exists <- function(df){
+  dtc_exists <- FALSE
+  for (fname in colnames(df)){
+    if (startsWith(fname, "Date Time")){
+      dtc_exists <- TRUE
+    }
+  }
+  dtc_exists
+}
+
+
 depth_as_number <- function(depth_str){
   # Takes a character string, e.g. "5m" and returns it as a number: 5.
   return(as.numeric(gsub("([0-9]+).*$", "\\1", depth_str))) # Copied from the internet
@@ -98,10 +126,12 @@ extract_depth <- function(fname) {
 
 extract_gmt_format <- function(data_df){
   # Returns the GMT offset string, e.g. "GMT+02:00"
+  dt_match_str <- NA
   for (cname in colnames(data_df)){
-    if (startsWith(cname, "Date Time")){
+    if (startsWith(cname, "Date Time") || cname == "datetime"){
       dt_match_str <- str_extract(cname, "GMT[+|-]\\d\\d:\\d\\d")
-    }}
+    }
+  }
   dt_match_str
 }
 
@@ -162,6 +192,18 @@ get_temp_unit <- function(dframe){
 }
 
 
+gmt_offset_exists <- function(df){
+  gmt_os_exists <- FALSE
+  if (datetime_col_exists(df)){
+    gmt_offset <- extract_gmt_format(df)
+    if (!is.na(gmt_offset)){
+      gmt_os_exists <- TRUE
+    }
+  }
+  gmt_os_exists
+}
+
+
 homogenize_colnames <- function(cnames){
   # Gives new, standardised column names to the dataframe:
   #   datetime, temp, conductivity_raw
@@ -186,10 +228,20 @@ homogenize_colnames <- function(cnames){
     return()  # works w/o argument because of pipe.
 }
 
+missing_conductivity <- function(df){
+  conductivity_missing <- TRUE
+  for (cname in colnames(df)){
+    if (startsWith(cname, "High Range") || cname == "conductivity_raw"){
+        conductivity_missing <- FALSE
+      }
+  }
+  conductivity_missing
+}
 
 
 # --------------------- LOADING LOOP -------------------------------------------
 
+log_var[length(log_var) + 1] <- paste("[", now(), "]\tLoading files.", sep = "")
 
 
 # Initiate empty data frames and lists for later use.
@@ -201,7 +253,7 @@ merged_files <- c()
 # Read filenames into a list called fnames.
 # Only use the ones that have the pattern .csv at the end ($)
 fnames <- list.files(PATH_TO_HOBO_FILES, pattern = ".csv$")
-
+n_files_total <- length(fnames)
 
 # Extract fnames w/ depth info:
 fnames_with_depth <- c()
@@ -210,11 +262,17 @@ for (fname in fnames){
   if (fname_contains_depth(fname)){
     fnames_with_depth[length(fnames_with_depth) + 1] <- fname
   } else {
+    log_var[length(log_var) + 1] <- paste("[", now(), "]\tNo info on depth in filename ", fname, ". File skipped.", sep = "")
     skipped_files[length(skipped_files) + 1] <- fname
   }
 }
+
 # Overwrite old fnames
+n_files_with_depth <- length(fnames_with_depth)
+message(paste("Skipping ", n_files_total - n_files_with_depth, " out of ", n_files_total, " files due to missing depth info.", sep = ""))
+log_var[length(log_var) + 1] <- paste("[", now(), "]\tSkipping ", n_files_total - n_files_with_depth, " out of ", n_files_total, " files due to missing depth info.", sep = "")
 fnames <- fnames_with_depth
+log_var[length(log_var) + 1] <- "\n"
 
 for (fname in fnames){
   depth <- extract_depth(fname)
@@ -227,29 +285,47 @@ for (fname in fnames){
   
   # Check if there is an error stored in the variable
   if (inherits(data_tmp, "error")){
+    error_msg <- paste
     message("Encountered error when reading ", fname, ". File skipped.")
+    log_var[length(log_var) + 1] <- paste("[", now(), "]\tError when reading file [ ", fname, "]. File skipped.", sep = "")
     skipped_files[length(skipped_files) + 1] <- fname
     # Skip the rest of this for-loop and jump to the next iteration.
     next
   }
   
   # If no error encountered, continue as planned
+  log_var[length(log_var) + 1] <- paste("[", now(), "]\tReading: ", depth, ":\t", fname, sep = "")
   message('Depth: ', depth, '\tFile: ', fname)
-  
+
   # Get temperature units. Needs to be done before colnames are changed.
   temperature_units <- get_temp_unit(data_tmp)
-  # Get GMT offset. Needs to be done before colnames are changed.
-  data_tmp <- add_gmt_offset(data_tmp)
+
+  # Add GMT offset.
+   
+  gmt_offset <- extract_gmt_format(data_tmp)
+  offsets <- c(offsets, gmt_offset)
+  if (is.na(gmt_offset)){
+    message(paste("No GMT offset could be extracted for file", fname, ". File skipped.", sep = ""))
+    log_var[length(log_var) + 1] <- paste("[", now(), "]\tCould not extract GMT offset for file ", fname, ". File skipped.", sep = "")
+    next
+  } else {
+    data_tmp <- add_gmt_offset(data_tmp)
+  }
+  
   
   # Adjust the column names for datetime, temp, and (if available) conductivity
   colnames(data_tmp) <- homogenize_colnames(colnames(data_tmp))
   
   # Correct Fahrenheit to Celsius if necessary.
   if (temperature_units == "F"){
+    log_var[length(log_var) + 1] <- paste("[", now(), "]\tTemperature for file ", fname, " is in Fahrenheit and will be converted to Celsius.", sep = "")
     message("(Temperature is in Fahrenheit and will be converted to Celsius.)")
     data_tmp$temp <- convert_f_to_c(data_tmp$temp)
   }
-
+  
+  if (missing_conductivity(data_tmp)){
+    log_var[length(log_var) + 1] <- paste("[", now(), "]\tMissing conductivity replaced with NA in file: ", fname, sep = "")
+  }
   data_tmp <- fill_cond_if_missing(data_tmp)
   data_tmp$conductivity_raw <- as.numeric(data_tmp$conductivity_raw)
   data_tmp <- select(data_tmp, datetime, temp, conductivity_raw, gmt_offset)
@@ -263,23 +339,29 @@ for (fname in fnames){
   merged_files[length(merged_files) + 1] <- fname
 }
 rm(data_tmp)
+log_var[length(log_var) + 1] <- paste("[", now(), "]\tDone loading data.\n", sep = "")
 
 
 
 # Show info about skipped and processed files
 n_processed <- length(processed_files)
 n_skipped <- length(skipped_files)
-message("Processed ", length(processed_files), " files.\nMerged ",
-        length(merged_files), " files (", n_skipped, " skipped).")
+log_var[length(log_var) + 1] <- paste("[", now(), "]\tProcessed ", n_processed, " files.", sep = "")
+log_var[length(log_var) + 1] <- paste("[", now(), "]\tSkipped ", n_skipped, " files.", sep = "")
+
+message("Processed ", length(processed_files), " files.\n",
+        length(fnames_with_depth), " file names contained depth info.\n",
+        "Merged ",length(merged_files), " files (", n_skipped, " skipped).")
 if (length(skipped_files) > 0){
   for (fname in skipped_files){
+    log_var[length(log_var) + 1] <- paste("[", now(), "]\tSkipped: ", fname, sep = "")
     message("Skipped csv file: ", fname)
   }
 }
 
-
 # ------------------ PREPPING DATA ---------------------------------------------
 
+log_var[length(log_var) + 1] <- paste("\n[", now(), "]\tPreparing data.", sep = "")
 
 # Adjust datetime
 data_merged <- fm_pm_to_AM_FM(data_merged) # Turn fm/em into AM/PM
@@ -294,7 +376,10 @@ len_old <- dim(data_merged)[1]
 data_merged <- distinct(data_merged, datetime, temp, conductivity_raw, depth_m,
                         .keep_all = TRUE)
 len_new <- dim(data_merged)[1]
-message("Removed ", len_old - len_new, " duplicate rows.")
+n_duplicates <- len_old - len_new
+log_var[length(log_var) + 1] <- paste("[", now(), "]\tRemoved ", n_duplicates, " duplicate data points.", sep = "")
+
+message("Removed ", n_duplicates, " duplicate rows.")
 
 # Add unique identifier column
 data_merged$id <- paste(as.character(data_merged$datetime),
@@ -315,7 +400,7 @@ data_raw <- data_merged
 data_raw_out <- data_raw
 date_now <- as.character(strptime(now(), format = "%Y-%m-%d"))
 data_raw_out$datetime <- as.character(data_raw_out$datetime)
-write_csv(data_raw_out, paste(SAVE_LOCATION, "hobo_data_raw_", date_now, ".csv", sep = ""))
+write_csv(data_raw, paste(SAVE_LOCATION, "hobo_data_raw_", now_clean, ".csv", sep = ""))
 rm(data_raw_out)
 
 
@@ -338,17 +423,8 @@ temp_na_1 <- dim(data_merged)[1]
 message("Removed ", temp_na_0 - temp_na_1, " rows where temp = NA.")
 
 
-# Define axis limits for the plots
-xlims <- c(min(data_merged$datetime), max(data_merged$datetime))
-ylims <- c(min(data_merged$temp), max(data_merged$temp))
-
-
-
-
-
 # ------------------------------- DELETE OUTLIERS ------------------------------
 # Delete manually marked outliers
-# TODO: FIX IDs! THESE ARE NOT UNIQUE!
 if (DELETE_MANUAL_OUTLIERS){
   d1 <- dim(data_merged)[1]
   outliers <- read.csv(PATH_TO_OUTLIER_FILE)
@@ -387,7 +463,6 @@ if (SD_BASED_OUTLIER_DELETION){
           SD_THRESHOLD, " standard deviations above time unit (",
           SD_BASIS, ").")
 }
-# Calculate mean and STDEV per month and mark everything that falls out of range:
 
 
 
@@ -413,6 +488,12 @@ if (DO_AGGREGATION){  # Add an aggregation column
   names(data_merged)[names(data_merged) == 'Group.2'] <- "depth_m"
 }
 
+# --------------------------- SAVE LOG -----------------------------------------
+
+fconn <- file(paste(SAVE_LOCATION, "LOG_", now_clean, ".txt", sep = ""))
+writeLines(log_var, fconn)
+close(fconn)
+
 # ----------------------------- CREATE WIDE FORMAT -----------------------------
 # Create a data frame in wide format
 data_wide <- reshape(data_merged, idvar = "datetime", timevar = "depth_m",
@@ -425,7 +506,12 @@ for (i  in 2:length(colnames(data_wide))){
 }
 
 
-# ------------------- PLOT  --------------------------------------------
+# ------------------- CREATE PLOTS  --------------------------------------------
+
+
+# Define axis limits for the plots
+xlims <- c(min(data_merged$datetime), max(data_merged$datetime))
+ylims <- c(min(data_merged$temp), max(data_merged$temp))
 
 # Plotting cleaned temperature data
 plot_temp_all <- ggplot(data = data_merged,
@@ -561,18 +647,14 @@ plot_temp_comparison_25m <- ggplot() +
   scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-# ---------------------- SAVE MERGED -------------------------------------------
+# ---------------------- SAVE FILES AND SHOW PLOTS -----------------------------
 data_merged_out <- data_merged
 data_merged_out$datetime <- as.character(data_merged_out$datetime)
-write_csv(data_merged_out, paste(SAVE_LOCATION, "hobo_data_merged_", date_now, ".csv", sep = ""))
+write_csv(data_merged_out, paste(SAVE_LOCATION, "hobo_data_merged_", now_clean, ".csv", sep = ""))
 rm(data_merged_out)
 
-# data_wide$datetime <- as.character(data_wide$datetime)
-# write_csv(data_wide, paste(SAVE_LOCATION, "hobo_data_wide_", date_now, ".csv", sep = ""))
-# 
-# data_raw$datetime <- as.character(data_raw$datetime)
-# write_csv(data_raw, paste(SAVE_LOCATION, "hobo_data_raw_", date_now, ".csv", sep = ""))
-
+data_wide$datetime <- as.character(data_wide$datetime)
+write_csv(data_wide, paste(SAVE_LOCATION, "hobo_data_wide_", now_clean, ".csv", sep = ""))
 
 # grid.arrange(plot_03m_raw, plot_07m_raw, plot_15m_raw, plot_25m_raw, ncol=1)
 grid.arrange(plot_temp_comparison_03m, plot_temp_comparison_07m,
