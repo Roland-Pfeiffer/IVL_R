@@ -12,13 +12,11 @@ library(stringr)  # Check if this works on Windows. Otherwise perhaps use "strin
 library(tcltk)
 library(tidyverse)
 
-log_threshold(DEBUG)
+log_threshold()  # set to log_threshold(DEBUG) to see debugging output.
 
 Sys.setlocale("LC_TIME", "en_GB.UTF-8")
 
 # -------------------------------- SCRIPT SETTINGS ------------------------------
-
-offsets <- c()
 
 # Adjust these according to your system and where your files are stored.
 
@@ -37,9 +35,10 @@ SD_THRESHOLD <- 2
 DELETE_MANUAL_OUTLIERS <- TRUE
 PATH_TO_OUTLIER_FILE <- "/media/findux/DATA/Documents/IVL/Data/outliers_latest.csv"
 
-SAVE_FILES <- FALSE
+SAVE_FILES <- TRUE
 
 
+# ----------------------- INTERNAL SETUPS --------------------------------------
 # Colors:
 C03 <- "#33CCCC"
 C07 <- "#009999"
@@ -193,7 +192,7 @@ get_temp_unit <- function(dframe){
   # Returns the temperature units (F or C) from the column name.
   temp_cname <- get_colname(dframe, "Temp")  # get_colname() function defined above.
   log_debug(temp_cname)
-  temp_unit <- str_match(temp_cname, "Temp, ??(F|C)")[,2]
+  temp_unit <- str_match(temp_cname, "Temp, °(F|C)")[,2]
   temp_unit
 }
 
@@ -238,8 +237,8 @@ missing_conductivity <- function(df){
   conductivity_missing <- TRUE
   for (cname in colnames(df)){
     if (startsWith(cname, "High Range") || cname == "conductivity_raw"){
-        conductivity_missing <- FALSE
-      }
+      conductivity_missing <- FALSE
+    }
   }
   conductivity_missing
 }
@@ -288,7 +287,7 @@ for (fname in fnames){
   
   # Try to read the file, if it fails, store the error in the variable.
   data_tmp <-  tryCatch(read.csv(full_path_to_file, skip = 1, check.names = FALSE),
-                           error = function(e) e)
+                        error = function(e) e)
   
   # Check if there is an error stored in the variable
   if (inherits(data_tmp, "error")){
@@ -302,7 +301,7 @@ for (fname in fnames){
   # If no error encountered, continue as planned
   log_var[length(log_var) + 1] <- paste("[", now(), "]\tReading: ", depth, ":\t", fname, sep = "")
   message('Depth: ', depth, '\tFile: ', fname)
-
+  
   # Get temperature units. Needs to be done before colnames are changed.
   # log_debug(names(data_tmp))
   temperature_units <- get_temp_unit(data_tmp)
@@ -542,25 +541,25 @@ data_merged$depth_classes <- factor(paste(data_merged$depth_m, "m"), levels = c(
 plot_temp_03m_raw <- ggplot(data = data_raw[data_raw$depth_m == 3, ], mapping = aes(x = datetime, y = temp, color = "red")) +
   geom_line() +
   ggtitle(label = "03 m raw") +
-  xlab("Time") + ylab("Temp. (??C)") +
+  xlab("Time") + ylab("Temp. (°C)") +
   scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 plot_temp_07m_raw <- ggplot(data = data_raw[data_raw$depth_m == 7, ], mapping = aes(x = datetime, y = temp, color = "red")) +
   geom_line() +
   ggtitle(label = "07 m raw") +
-  xlab("Time") + ylab("Temp. (??C)") +
+  xlab("Time") + ylab("Temp. (°C)") +
   scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 plot_temp_15m_raw <- ggplot(data = data_raw[data_raw$depth_m == 15, ], mapping = aes(x = datetime, y = temp, color = "red")) +
   geom_line() +
   ggtitle(label = "15 m raw") +
-  xlab("Time") + ylab("Temp. (??C)") +
+  xlab("Time") + ylab("Temp. (°C)") +
   scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 plot_temp_25m_raw <- ggplot(data = data_raw[data_raw$depth_m == 25, ], mapping = aes(x = datetime, y = temp, color = "red")) +
   geom_line() +
   ggtitle(label = "25 m raw") +
-  xlab("Time") + ylab("Temp. (??C)") +
+  xlab("Time") + ylab("Temp. (°C)") +
   scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
@@ -574,7 +573,7 @@ plot_temp_03m <- ggplot(data = data_merged[data_merged$depth_m == 3, ],
                         mapping = aes(x = datetime, y = temp)) +
   geom_line(color="#33CCCC" ) +
   ggtitle(label = "03 m") +
-  xlab("Time") + ylab("Temp. (??C)") +
+  xlab("Time") + ylab("Temp. (°C)") +
   scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
@@ -582,7 +581,7 @@ plot_temp_07m <- ggplot(data = data_merged[data_merged$depth_m == 7, ],
                         mapping = aes(x = datetime, y = temp)) +
   geom_line(color="#009999" ) +
   ggtitle("07 m") +
-  xlab("Time") + ylab("Temp. (??C)") +
+  xlab("Time") + ylab("Temp. (°C)") +
   scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
@@ -590,7 +589,7 @@ plot_temp_15m <- ggplot(data = data_merged[data_merged$depth_m == 15, ],
                         mapping = aes(x = datetime, y = temp)) +
   geom_line(color="#006666" ) +
   ggtitle("15 m") +
-  xlab("Time") + ylab("Temp. (??C)") +
+  xlab("Time") + ylab("Temp. (°C)") +
   scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
@@ -598,7 +597,7 @@ plot_temp_25m <- ggplot(data = data_merged[data_merged$depth_m == 25, ],
                         mapping = aes(x = datetime, y = temp)) +
   geom_line(color="#003333" ) +
   ggtitle("25 m") +
-  xlab("Time") + ylab("Temp. (??C)") +
+  xlab("Time") + ylab("Temp. (°C)") +
   scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
@@ -661,8 +660,8 @@ plot_temp_comparison_07m <- ggplot() +
   geom_line(data = data_merged[data_merged$depth_m == 7, ],
             mapping = aes(x=datetime, y=temp), color=C07) +
   ggtitle(label = "07 m") + 
-  xlab("Time") + ylab("Temp. (??C)") +
-  xlab("Time") + ylab("Temp. (??C)") +
+  xlab("Time") + ylab("Temp. (°C)") +
+  xlab("Time") + ylab("Temp. (°C)") +
   scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 

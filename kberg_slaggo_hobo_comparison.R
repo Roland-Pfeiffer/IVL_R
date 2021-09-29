@@ -11,7 +11,7 @@ library(tidyr)
 
 # ------------------------- FILE NAMES -----------------------------------------
 
-fpath_hobo <- "file:///media/findux/DATA/Documents/IVL/Data/hobo_out/hobo_data_merged_2021-09-28_22-45.csv"
+fpath_hobo <- "file:///media/findux/DATA/Documents/IVL/Data/hobo_out/hobo_data_merged_2021-09-29_08-50.csv"
 fpath_kberg <- "file:///media/findux/DATA/Documents/IVL/Data/Kberg_weather_data/kberg_data_merged_2021-09-27.csv"
 fpath_slaggo <- "file:///media/findux/DATA/Documents/IVL/Data/slaggo_data/slaggo_data_merged_2021-09-29.csv"
   
@@ -33,47 +33,74 @@ data_slaggo <- read.csv(fpath_slaggo)
 data_slaggo$datetime <- ymd_hms(data_slaggo$datetime)
 data_slaggo <- data_slaggo[data_slaggo$depth_m <= 30, ]
 
-# Take avg. for 25 m:
-# slaggo_fully_long <- melt(data_slaggo, id.vars = c("datetime", "depth_m"))
-# slaggo_wide <- spread(slaggo_fully_long, variable+depth_m, value)
-# slaggo_wide <- dcast(slaggo_fully_long, variable ~ depth_m)
-# slaggo_wide <- slaggo_wide[c("datetime", "20", "30")]
-# names(slaggo_wide)[names(slaggo_wide) == "20"] <- "sal_20"
-# names(slaggo_wide)[names(slaggo_wide) == "30"] <- "sal_30"
-# slaggo_wide$sal_25_avg <- rowMeans(slaggo_wide[c("sal_20", "sal_30")])
+summary(data_slaggo)
 
 # Extract the salinity and average it
 slaggo_sal_wide <- spread(data_slaggo[c("datetime", "sal_PSU", "depth_m")], depth_m, sal_PSU)
-slaggo_sal_wide <- slaggo_sal_wide[c("datetime", "20", "30")]
-names(slaggo_sal_wide)[names(slaggo_sal_wide) == "20"] <- "sal_20"
-names(slaggo_sal_wide)[names(slaggo_sal_wide) == "30"] <- "sal_30"
-slaggo_sal_wide$sal_25_avg <- rowMeans(slaggo_sal_wide[c("sal_20", "sal_30")])
+slaggo_sal_wide <- slaggo_sal_wide[c("datetime", "6", "8", "20", "30")]
+names(slaggo_sal_wide)[which(names(slaggo_sal_wide) == "6")] <- "sal_6"
+names(slaggo_sal_wide)[which(names(slaggo_sal_wide) == "8")] <- "sal_8"
+names(slaggo_sal_wide)[which(names(slaggo_sal_wide) == "20")] <- "sal_20"
+names(slaggo_sal_wide)[which(names(slaggo_sal_wide) == "30")] <- "sal_30"
+slaggo_sal_wide$sal_avg_25 <- rowMeans(slaggo_sal_wide[c("sal_20", "sal_30")])
+slaggo_sal_wide$sal_avg_7 <- rowMeans(slaggo_sal_wide[c("sal_6", "sal_8")])
 
 # Extract the temperature and average it
 slaggo_temp_wide <- spread(data_slaggo[c("datetime", "temp", "depth_m")], depth_m, temp)
-slaggo_temp_wide <- slaggo_temp_wide[c("datetime", "20", "30")]
-names(slaggo_temp_wide)[names(slaggo_temp_wide) == "20"] <- "temp_20"
-names(slaggo_temp_wide)[names(slaggo_temp_wide) == "30"] <- "temp_30"
-slaggo_temp_wide$temp_25_avg <- rowMeans(slaggo_temp_wide[c("temp_20", "temp_30")])
+slaggo_temp_wide <- slaggo_temp_wide[c("datetime", "6", "8", "20", "30")]
+names(slaggo_temp_wide)[which(names(slaggo_temp_wide) == "6")] <- "temp_6"
+names(slaggo_temp_wide)[which(names(slaggo_temp_wide) == "8")] <- "temp_8"
+names(slaggo_temp_wide)[which(names(slaggo_temp_wide) == "20")] <- "temp_20"
+names(slaggo_temp_wide)[which(names(slaggo_temp_wide) == "30")] <- "temp_30"
+slaggo_temp_wide$temp_avg_25 <- rowMeans(slaggo_temp_wide[c("temp_20", "temp_30")])
+slaggo_temp_wide$temp_avg_7 <- rowMeans(slaggo_temp_wide[c("temp_6", "temp_8")])
+
+summary(slaggo_temp_wide)
+summary(slaggo_sal_wide)
 
 # Merge the two into one data frame, add depth info and adjust colnames
 slaggo_wide <- merge(slaggo_sal_wide, slaggo_temp_wide, by = "datetime")
-rm(list = c("slaggo_sal_wide", "slaggo_temp_wide"))
-slaggo_wide$depth_m <- 25
-names(slaggo_wide)[names(slaggo_wide) == "temp_25_avg"] <- "temp"
-names(slaggo_wide)[names(slaggo_wide) == "sal_25_avg"] <- "sal_PSU"
 
-# cleanup for rbind:
-slaggo_wide <- slaggo_wide[c("datetime", "depth_m", "temp", "sal_PSU")]
-slaggo_wide$chla_ugl <- as.numeric(NA)
-names(data_slaggo) == names(slaggo_wide)
-data_slaggo <- rbind(data_slaggo, slaggo_wide)
+# missing_vals_for_7m_avg <- is.na(slaggo_wide$sal_6) & is.na(slaggo_wide$sal_8)
+# sum(missing_vals_for_7m_avg)
+
+# Separate 25 m averages
+slaggo_25 <- slaggo_wide[c("datetime", "temp_avg_25", "sal_avg_25")]
+names(slaggo_25)[names(slaggo_25) == "temp_avg_25"] <- "temp"
+names(slaggo_25)[names(slaggo_25) == "sal_avg_25"] <- "sal_PSU"
+slaggo_25$depth_m <- as.factor(25)
+slaggo_25$chla_ugl <- as.numeric(NA)
+
+# Separate 7 m averages
+slaggo_7 <- slaggo_wide[c("datetime", "temp_avg_7", "sal_avg_7")]
+names(slaggo_7)[which(names(slaggo_7) == "temp_avg_7")] <- "temp"
+names(slaggo_7)[which(names(slaggo_7) == "sal_avg_7")] <- "sal_PSU"
+slaggo_7$depth_m <- as.factor(7)
+slaggo_7$chla_ugl <- as.numeric(NA)
+
+slaggo_7_wna <- ggplot(data = slaggo_7, mapping = aes(x=datetime, y=temp)) +
+  geom_line() + 
+  geom_point()
+slaggo_7_wona <- ggplot(data = slaggo_7[!is.na(slaggo_7$temp), ], mapping = aes(x=datetime, y=temp)) +
+  geom_line()
+grid.arrange(slaggo_7_wna, slaggo_7_wona, ncol = 1)
+
+
+# Add averaged data to the dataset:
+names(data_slaggo)
+names(slaggo_7)
+names(slaggo_25)
+data_slaggo <- rbind(data_slaggo, slaggo_7, slaggo_25)
 
 # Remove everything older than 2019
 data_slaggo <- data_slaggo[year(data_slaggo$datetime) >= 2019, ]
 data_slaggo$Source <- "Slaggo"
 
-# TODO: Average for 7 m btw. 6 and 8
+
+ggplot(data = data_slaggo[!is.na(data_slaggo$sal_PSU), ], mapping = aes(x=datetime, y=sal_PSU)) +
+  geom_line() +
+  # geom_point(size = 0.05) +
+  facet_wrap(~depth_m)
 
 
 # --------------------------------- HOBO ---------------------------------------
@@ -81,6 +108,7 @@ data_slaggo$Source <- "Slaggo"
 data_hobo <- read.csv(fpath_hobo)
 data_hobo$datetime <- ymd_hms(data_hobo$datetime)
 data_hobo$Source <- "HOBO loggers"
+
 
 # -------------------------- COMBINE DATA --------------------------------------
 
@@ -98,19 +126,18 @@ data_all <- rbind(data_kberg, data_hobo, subset(data_slaggo, select = -c(chla_ug
 data_all$source <- as.factor(data_all$source)
 data_all$depth_m <- as.factor(data_all$depth_m)
 
-# Change factor levels to include "m"
-# for (i in seq_along(levels(data_all$depth_m))){
-#   levels(data_all$depth_m)[i] <- paste(levels(data_all$depth_m)[i], "m")
-# }
+# Reorder factor levels
+# levels(data_all$depth_m) <- levels(data_all$depth_m)[order(as.numeric(levels(data_all$depth_m)))]
 
 # ----------------------------- COMPARISON -------------------------------------
 
 
 depth_values <- c(3, 7, 15, 20, 25, 30)
-
+levels(data_all$depth_m)
 temp_comp <- ggplot(data = data_all[data_all$depth_m %in% depth_values, ], mapping = aes(x = datetime, y = temp, color = Source)) +
   geom_line(alpha = 0.7) +
-  facet_wrap(~data_all[data_all$depth_m %in% depth_values, "depth_m"], ncol=1) +
+  geom_point(alpha = 0.7, size = 0.5) +
+  facet_wrap(~depth_m, ncol = 1) +
   ggtitle(label = "Temperature comparison btw. sites", subtitle = ("25 m data for Slaggo: avg. btw. 20 m & 30 m.")) +
   xlab("Date") + ylab("Temperature (\u00b0C)") + # Using unicode for degree symbol
   scale_x_datetime(date_breaks = "1 month", date_labels = "%b-'%y") +
@@ -118,6 +145,7 @@ temp_comp <- ggplot(data = data_all[data_all$depth_m %in% depth_values, ], mappi
 
 sal_comp <- ggplot(data = data_sal[data_sal$depth_m %in% depth_values, ], mapping = aes(x = datetime, y = sal_PSU, color = Source)) +
   geom_line(alpha = 0.7) +
+  geom_point(alpha = 0.5, size = 0.1) +
   facet_wrap(~depth_m, ncol = 1) +
   ggtitle(label = "Salinity comparison btw. sites", subtitle = ("25 m data for Slaggo: avg. btw. 20 m & 30 m.")) +
   xlab("Date") + ylab("Salinity (PSU)") +
