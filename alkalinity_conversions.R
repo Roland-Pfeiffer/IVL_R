@@ -19,3 +19,4 @@ dkh_to_ppm <- function(dkh){
 }
 
 dkh_to_ppm(5.2)
+dkh_to_ppm(5)
