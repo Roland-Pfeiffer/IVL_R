@@ -44,7 +44,6 @@ C03 <- "#33CCCC"
 C07 <- "#009999"
 C15 <- "#006666"
 C25 <- "#336666"
-
 # Initiate logging
 now_clean <- format(now(), format = "%Y-%m-%d_%H-%M")
 log_var <- c(paste("Datetime:", now()))
@@ -94,6 +93,7 @@ convert_f_to_c <- function(deg_F){
 
 
 datetime_col_exists <- function(df){
+  # Checks if there is a column starting with "Date Time".
   dtc_exists <- FALSE
   for (fname in colnames(df)){
     if (startsWith(fname, "Date Time")){
@@ -119,9 +119,9 @@ extract_depth <- function(fname) {
   re_match <- str_extract(fname_lower, "\\d{1,2}m")
   re_match_surface <- str_extract(fname_lower, "surface")
   if (!is.na(re_match_surface)){
-    return("3m")
+    "3m"
   } else{
-    return(re_match)
+    re_match
   }}
 
 
@@ -155,7 +155,7 @@ fm_pm_to_AM_FM <- function(df){
   # Requires a character variable named "datetime" to be in the dataframe.
   df$datetime <- str_replace(df$datetime, "em", "PM")
   df$datetime <- str_replace(df$datetime, "fm", "AM")
-  return(df)
+  df
 }
 
 
@@ -198,6 +198,8 @@ get_temp_unit <- function(dframe){
 
 
 gmt_offset_exists <- function(df){
+  # Checks if there is a datetime column containing GMT info with the pattern:
+  # GMT+HH:MM
   gmt_os_exists <- FALSE
   if (datetime_col_exists(df)){
     gmt_offset <- extract_gmt_format(df)
@@ -210,7 +212,7 @@ gmt_offset_exists <- function(df){
 
 
 homogenize_colnames <- function(cnames){ # ToDo: use df instad of cnames
-  # Gives new, standardised column names to the dataframe:
+  #  Takes a list of column names, and returns them in homogenized form:
   #   datetime, temp, conductivity_raw
   # conductivity_raw will be skipped if there is not conductivity data.
   
@@ -234,6 +236,9 @@ homogenize_colnames <- function(cnames){ # ToDo: use df instad of cnames
 }
 
 missing_conductivity <- function(df){
+  # Checks if a data frame has a conductivity column starting with "High Range"
+  # or named "conductivity_raw".
+  # Returns TRUE if one of the two was found, else FALSE.
   conductivity_missing <- TRUE
   for (cname in colnames(df)){
     if (startsWith(cname, "High Range") || cname == "conductivity_raw"){
@@ -530,170 +535,6 @@ close(fconn)
 
 
 
-# ------------------------- CREATE PLOTS  --------------------------------------
-
-# Define axis limits for the plots
-xlims <- c(min(data_raw$datetime), max(data_raw$datetime))
-ylims <- c(min(data_raw$temp), max(data_raw$temp))
-data_merged$depth_classes <- factor(paste(data_merged$depth_m, "m"), levels = c("3 m", "7 m", "15 m", "25 m"))
-
-# Plotting raw data
-plot_temp_03m_raw <- ggplot(data = data_raw[data_raw$depth_m == 3, ], mapping = aes(x = datetime, y = temp, color = "red")) +
-  geom_line() +
-  ggtitle(label = "03 m raw") +
-  xlab("Time") + ylab("Temp. (°C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-plot_temp_07m_raw <- ggplot(data = data_raw[data_raw$depth_m == 7, ], mapping = aes(x = datetime, y = temp, color = "red")) +
-  geom_line() +
-  ggtitle(label = "07 m raw") +
-  xlab("Time") + ylab("Temp. (°C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-plot_temp_15m_raw <- ggplot(data = data_raw[data_raw$depth_m == 15, ], mapping = aes(x = datetime, y = temp, color = "red")) +
-  geom_line() +
-  ggtitle(label = "15 m raw") +
-  xlab("Time") + ylab("Temp. (°C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-plot_temp_25m_raw <- ggplot(data = data_raw[data_raw$depth_m == 25, ], mapping = aes(x = datetime, y = temp, color = "red")) +
-  geom_line() +
-  ggtitle(label = "25 m raw") +
-  xlab("Time") + ylab("Temp. (°C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-
-# Plotting cleaned temperature data
-plot_temp_all <- ggplot(data = data_merged, mapping = aes(x = datetime, y = temp, color = depth_m)) +
-  geom_line() +
-  ggtitle("All depths")
-
-plot_temp_03m <- ggplot(data = data_merged[data_merged$depth_m == 3, ],
-                        mapping = aes(x = datetime, y = temp)) +
-  geom_line(color="#33CCCC" ) +
-  ggtitle(label = "03 m") +
-  xlab("Time") + ylab("Temp. (°C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-plot_temp_07m <- ggplot(data = data_merged[data_merged$depth_m == 7, ],
-                        mapping = aes(x = datetime, y = temp)) +
-  geom_line(color="#009999" ) +
-  ggtitle("07 m") +
-  xlab("Time") + ylab("Temp. (°C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-plot_temp_15m <- ggplot(data = data_merged[data_merged$depth_m == 15, ],
-                        mapping = aes(x = datetime, y = temp)) +
-  geom_line(color="#006666" ) +
-  ggtitle("15 m") +
-  xlab("Time") + ylab("Temp. (°C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-plot_temp_25m <- ggplot(data = data_merged[data_merged$depth_m == 25, ],
-                        mapping = aes(x = datetime, y = temp)) +
-  geom_line(color="#003333" ) +
-  ggtitle("25 m") +
-  xlab("Time") + ylab("Temp. (°C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-
-# Plot conductivity (raw)
-cond_data <- subset(data_raw, select = c(datetime, conductivity_raw, depth_m))
-cond_data <- cond_data[!is.na(cond_data$conductivity_raw), ]
-
-plot_cond_03m <- ggplot(data = cond_data[cond_data$depth_m == 3, ],
-                        mapping = aes(x = datetime, y = conductivity_raw)) + 
-  geom_line(color="#003333" ) +
-  ggtitle("03 m") +
-  xlab("Time") + ylab("Raw conductivity (uS cm-1)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  theme(axis.text.y = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-plot_cond_07m <- ggplot(data = cond_data[cond_data$depth_m == 7, ],
-                        mapping = aes(x = datetime, y = conductivity_raw)) + 
-  geom_line(color="#003333" ) +
-  ggtitle("07 m") +
-  xlab("Time") + ylab("Raw conductivity (uS cm-1)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  theme(axis.text.y = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-plot_cond_15m <- ggplot(data = cond_data[cond_data$depth_m == 15, ],
-                        mapping = aes(x = datetime, y = conductivity_raw)) + 
-  geom_line(color="#003333" ) +
-  ggtitle("15 m") +
-  xlab("Time") + ylab("Raw conductivity (uS cm-1)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  theme(axis.text.y = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-plot_cond_25m <- ggplot(data = cond_data[cond_data$depth_m == 25, ],
-                        mapping = aes(x = datetime, y = conductivity_raw)) + 
-  geom_line(color="#003333" ) +
-  ggtitle("25 m") +
-  xlab("Time") + ylab("Raw conductivity (uS cm-1)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  theme(axis.text.y = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-
-plot_temp_comparison_03m <- ggplot() +
-  geom_line(data = data_raw[data_raw$depth_m == 3, ],
-            mapping = aes(x=datetime, y=temp), color="red") +
-  geom_line(data = data_merged[data_merged$depth_m == 3, ],
-            mapping = aes(x=datetime, y=temp), color=C07) +
-  ggtitle(label = "03 m") + 
-  xlab("Time") + ylab("Temp. (\u00b0C)") +
-  xlab("Time") + ylab("Temp. (\u00b0C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-plot_temp_comparison_07m <- ggplot() +
-  geom_line(data = data_raw[data_raw$depth_m == 7, ],
-            mapping = aes(x=datetime, y=temp), color="red") +
-  geom_line(data = data_merged[data_merged$depth_m == 7, ],
-            mapping = aes(x=datetime, y=temp), color=C07) +
-  ggtitle(label = "07 m") + 
-  xlab("Time") + ylab("Temp. (°C)") +
-  xlab("Time") + ylab("Temp. (°C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-plot_temp_comparison_15m <- ggplot() +
-  geom_line(data = data_raw[data_raw$depth_m == 15, ],
-            mapping = aes(x=datetime, y=temp), color="red") +
-  geom_line(data = data_merged[data_merged$depth_m == 15, ],
-            mapping = aes(x=datetime, y=temp), color=C07) +
-  ggtitle(label = "15 m") + 
-  xlab("Time") + ylab("Temp. (\u00b0C)") +
-  xlab("Time") + ylab("Temp. (\u00b0C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-plot_temp_comparison_25m <- ggplot() +
-  geom_line(data = data_raw[data_raw$depth_m == 25, ],
-            mapping = aes(x=datetime, y=temp), color="red") +
-  geom_line(data = data_merged[data_merged$depth_m == 25, ],
-            mapping = aes(x=datetime, y=temp), color=C07) +
-  ggtitle(label = "25 m") + 
-  xlab("Time") + ylab("Temp. (\u00b0C)") +
-  scale_x_datetime(limits = xlims, date_breaks = "1 month", date_labels = "%b-'%y") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-plot_faceted <- ggplot(data = data_merged, mapping = aes(x = datetime, y = temp)) +
-  theme_fivethirtyeight() +
-  facet_wrap(~depth_classes, ncol=1) +
-  geom_line(color = "seagreen") +
-  xlab("Date") + ylab("Temperature (\u00b0C)")
-
-
-
 # ---------------------------- SAVE FILES --------------------------------------
 
 # Save long format
@@ -717,13 +558,3 @@ data_wide <- subset(data_wide, select = c(datetime,
 if (SAVE_FILES) write_csv(data_wide, paste(SAVE_LOCATION, "hobo_data_wide_", now_clean, ".csv", sep = ""))
 
 
-
-# -------------------------- SHOW PLOTS ----------------------------------------
-
-# grid.arrange(plot_03m_raw, plot_07m_raw, plot_15m_raw, plot_25m_raw, ncol=1)
-grid.arrange(plot_temp_comparison_03m, plot_temp_comparison_07m,
-             plot_temp_comparison_15m, plot_temp_comparison_25m,
-             ncol=1)
-grid.arrange(plot_temp_03m_raw, plot_temp_07m_raw, plot_temp_15m_raw, plot_temp_25m_raw, ncol=1)
-grid.arrange(plot_temp_03m, plot_temp_07m, plot_temp_15m, plot_temp_25m, ncol=1)
-plot_temp_all
