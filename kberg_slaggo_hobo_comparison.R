@@ -11,7 +11,7 @@ library(tidyr)
 
 # ------------------------- FILE NAMES -----------------------------------------
 
-fpath_hobo <- "file:///media/findux/DATA/Documents/IVL/Data/hobo_out/hobo_data_merged_2021-09-29_08-50.csv"
+fpath_hobo <- "file:///media/findux/DATA/Documents/IVL/Data/hobo_out/hobo_data_merged_2021-09-29_19-20.csv"
 fpath_kberg <- "file:///media/findux/DATA/Documents/IVL/Data/Kberg_weather_data/kberg_data_merged_2021-09-27.csv"
 fpath_slaggo <- "file:///media/findux/DATA/Documents/IVL/Data/slaggo_data/slaggo_data_merged_2021-09-29.csv"
   
