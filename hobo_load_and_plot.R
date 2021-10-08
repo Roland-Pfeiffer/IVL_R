@@ -14,10 +14,10 @@ Sys.setlocale("LC_ALL", "en_GB.UTF-8")
 
 fpath_merged <- "file:///media/findux/DATA/Documents/IVL/Data/hobo_out/hobo_data_merged_2021-10-01_16-48.csv"
 fpath_raw <- "file:///media/findux/DATA/Documents/IVL/Data/hobo_out/hobo_data_raw_2021-10-01_16-48.csv"
-fpath_slaggo <- "file:///media/findux/DATA/Documents/IVL/Data/slaggo_data/Slaggo_re-merged_2021-10-02_02-32.csv"
+fpath_slaggo <- "file:///media/findux/DATA/Documents/IVL/Data/slaggo_data/Slaggo_combined_sharkweb_and_raw_2021-10-02_03-25.csv"
 
 COLOR_PALETTE <- c("#33CCCC", "#009999", "#006666", "#336666")
-TRANSPARENCY_VALUE = 0.15
+IVL_PALETTE <- c("#64cbce", "#37aaae", "#257274", "#1f5f61")
 
 
 # ------------------------- PREPARE DATA  ----------------------------------
@@ -42,8 +42,7 @@ slaggo_data$depth_m <- droplevels(slaggo_data$depth_m)
 
 slaggo_data$facet_groups <- factor(paste(slaggo_data$depth_m, "m"),
                                    levels = c("3 m", "7 m", "15 m", "25 m"))
-# Only select relevant depths:
-
+slaggo_data <- slaggo_data[year(slaggo_data$datetime) > 2018, ]
 
 
 
@@ -57,8 +56,7 @@ temp_plot_faceted <- ggplot(data = data_merged, mapping = aes(x = datetime,
                                                               y = temp)) +
   theme_bw() +
   # Map the background data in grey (actually transparent black).
-  geom_line(data = data_nofacet, mapping = aes(group=depth_m), color="black", 
-            alpha=TRANSPARENCY_VALUE) +
+  geom_line(data = data_nofacet, mapping = aes(group=depth_m), color="#cccccc") +
   # Plot the corresponding data in color on top:
   facet_grid(facet_groups ~ .) +
   geom_line(mapping = aes(color = depth_m)) +
@@ -79,8 +77,7 @@ sal_plot_faceted <- ggplot(data = slaggo_data, mapping = aes(x = datetime,
                                                              y = sal_PSU)) +
   theme_bw() +
   # Map the background data in grey (actually transparent black).
-  geom_line(data = slaggo_nofacet, mapping = aes(group=depth_m), color="black", 
-            alpha=TRANSPARENCY_VALUE) +
+  geom_line(data = slaggo_nofacet, mapping = aes(group=depth_m), color="#cccccc") +
   # Plot the corresponding data in color on top:
   facet_grid(facet_groups ~ .) +
   geom_line(mapping = aes(color = depth_m)) +

@@ -9,6 +9,7 @@ library(tidyr)
 
 
 fpath_slaggo_raw <- "/media/findux/DATA/Documents/IVL/Data/slaggo_data/raw/"
+fpath_sharkweb <- "/media/findux/DATA/Documents/IVL/Data/slaggo_data/slaggo_data_merged_2021-10-02.csv"
 save_path <- "/media/findux/DATA/Documents/IVL/Data/slaggo_data/"
 depth_lvls <- c(3, 7, 15, 25)
 
@@ -83,5 +84,13 @@ slaggo_final$depth_m <- sapply(slaggo_final$depth_m, FUN = get_closest_level)
 slaggo_final$depth_m <- as.factor(slaggo_final$depth_m)
 
 
-write.csv(slaggo_final, paste(save_path, "Slaggo_re-merged_", t_now, ".csv", sep = ""),
+sharkweb_data <- read.csv(fpath_sharkweb)
+sharkweb_data <- subset(sharkweb_data, select = -c(chla_ugl, temp))
+sharkweb_data <- sharkweb_data[sharkweb_data$depth_m %in% depth_lvls, ]
+sharkweb_data$datetime <- ymd_hms(sharkweb_data$datetime)
+sharkweb_data$depth_m <- as.factor(sharkweb_data$depth_m)
+
+slaggo_combined <- rbind(slaggo_final, sharkweb_data)
+
+write.csv(slaggo_combined, paste(save_path, "Slaggo_combined_sharkweb_and_raw_", t_now, ".csv", sep = ""),
           row.names = FALSE)
