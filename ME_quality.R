@@ -101,6 +101,9 @@ Medians <- meq_data %>%
   ungroup()
 
 
+# ----------------------- CUP WEIGHT CORRECTIONS--------------------------------
+
+
 # Try "correcting" the cup weight
 sel <- meq_data$depth_m == 15 & meq_data$cup_weight < 1
 meq_data$cup_weight_corrected <- meq_data$cup_weight
@@ -115,32 +118,42 @@ meq_data$ci_len_recalculated <- meq_data$dw_tissue_recalculated / meq_data$lengt
 # Use avg. cup weight
 sel <- meq_data$sampling_date == "2021-06-01" & meq_data$depth_m == 15
 meq_data$cup_weight_avg <- meq_data$cup_weight
-meq_data$cup_weight_avg[sel] <- mean(meq_data$cup_weight[!sel])
+meq_data$cup_weight_avg[sel] <- mean(meq_data$cup_weight[!sel]) # Avg everything except the values to replace
 meq_data$dw_tissue_using_cup_avg <- meq_data$dw_tissue_and_cup - meq_data$cup_weight_avg
 meq_data$ci_len_using_cup_avg <- meq_data$dw_tissue_using_cup_avg / meq_data$length_shell_mm * 100
 
 
 
 # Using avg. weight around June 1 (previous and subsequent sampling date for 15m)
-meq_data$cup_weight_short_avg <- meq_data$cup_weight
+meq_data$cup_weight_adjacent_avg <- meq_data$cup_weight
 sel_center <- meq_data$sampling_date_short == "Jun 01" & meq_data$depth_m == 15
 sel_around <- meq_data$sampling_date_short %in% c("May 12", "Jun 14") & meq_data$depth_m == 15
 short_avg <- mean(meq_data$cup_weight[sel_around])
-meq_data$cup_weight_short_avg[sel] <- short_avg
-meq_data$dw_tissue_short_avg <- meq_data$dw_tissue_and_cup - meq_data$cup_weight_short_avg
+meq_data$cup_weight_adjacent_avg[sel] <- short_avg
+meq_data$dw_tissue_short_avg <- meq_data$dw_tissue_and_cup - meq_data$cup_weight_adjacent_avg
 meq_data$ci_len_short_avg <- meq_data$dw_tissue_short_avg / meq_data$length_shell_mm * 100
 
 
+# Using average from that same sampling occasion, just excluding the cups below 1
+sel_june01 <- meq_data$depth_m != 15 & meq_data$sampling_date == "2021-06-01"
+sel_center <- meq_data$sampling_date == "2021-06-01" & meq_data$depth_m == 15
+meq_data$cup_weight_avg_june01 <- meq_data$cup_weight
+meq_data$cup_weight_avg_june01[sel_center] <- mean(meq_data$cup_weight[sel_june01])
+meq_data$dw_tissue_june01_avg <- meq_data$dw_tissue_and_cup - meq_data$cup_weight_avg_june01
+meq_data$ci_len_june01_avg <- meq_data$dw_tissue_june01_avg / meq_data$length_shell_mm * 100
 
-# -------------------------------- PLOTTING ------------------------------------
+
+# -------------------------------- DW PLOTS ------------------------------------
 
 
-plot_ME_DW_orig <- ggplot(data = meq_data, mapping = aes(x = sampling_date_short, y = dw_tissue,
-                                                         fill = sampling_date_short)) +
+plot_ME_DW_orig <- ggplot(data = meq_data, 
+                          mapping = aes(x = sampling_date_short, 
+                                        y = dw_tissue,
+                                        fill = sampling_date_short)) +
   theme_bw() +
   geom_boxplot(outlier.shape = 21,
                show.legend = FALSE) +
-  ggtitle(label = "*Mytilus edulis* tissue dry weight per sampling and depth. UNCORRECTED") +
+  ggtitle(label = "*Mytilus edulis* tissue dry weight per sampling occasion and depth. UNCORRECTED") +
   theme(plot.title = ggtext::element_markdown()) +
   ylab("Dry weight tissue (g)") +
   xlab("\nSampling occasion (2021)") + 
@@ -148,12 +161,14 @@ plot_ME_DW_orig <- ggplot(data = meq_data, mapping = aes(x = sampling_date_short
   facet_grid(.~depth_verbose, scales = "free_x") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-plot_ME_DW_recalculated <- ggplot(data = meq_data, mapping = aes(x = sampling_date_short, y = dw_tissue_recalculated,
-                                                           fill = sampling_date_short)) +
+plot_ME_DW_recalculated <- ggplot(data = meq_data, 
+                                  mapping = aes(x = sampling_date_short,
+                                                y = dw_tissue_recalculated,
+                                                fill = sampling_date_short)) +
   theme_bw() +
   geom_boxplot(outlier.shape = 21,
                show.legend = FALSE) +
-  ggtitle(label = "*Mytilus edulis* tissue dry weight per sampling and depth.",
+  ggtitle(label = "*Mytilus edulis* tissue dry weight per sampling occasion and depth.",
           subtitle = "Using +1 correction where cup weight < 1.") +
   theme(plot.title = ggtext::element_markdown()) +
   ylab("Dry weight tissue (g)") +
@@ -161,9 +176,11 @@ plot_ME_DW_recalculated <- ggplot(data = meq_data, mapping = aes(x = sampling_da
   scale_fill_brewer(palette = "BrBG") +
   facet_grid(.~depth_verbose, scales = "free_x") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-plot_ME_DW_recalculated
 
-plot_ME_DW_w_cup_avg <- ggplot(data = meq_data, mapping = aes(x = sampling_date_short, y = dw_tissue_using_cup_avg, fill = sampling_date_short)) +
+plot_ME_DW_w_cup_avg <- ggplot(data = meq_data,
+                               mapping = aes(x = sampling_date_short,
+                                             y = dw_tissue_using_cup_avg,
+                                             fill = sampling_date_short)) +
   theme_bw() +
   geom_boxplot(outlier.shape = 21,
                show.legend = FALSE) +
@@ -176,7 +193,10 @@ plot_ME_DW_w_cup_avg <- ggplot(data = meq_data, mapping = aes(x = sampling_date_
   facet_grid(.~depth_verbose) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-plot_ME_DW_short_avg <- ggplot(data = meq_data, mapping = aes(x = sampling_date_short, y = dw_tissue_short_avg, fill = sampling_date_short)) +
+plot_ME_DW_short_avg <- ggplot(data = meq_data,
+                               mapping = aes(x = sampling_date_short,
+                                             y = dw_tissue_short_avg,
+                                             fill = sampling_date_short)) +
   theme_bw() +
   geom_boxplot(outlier.shape = 21,
                show.legend = FALSE) +
@@ -189,13 +209,33 @@ plot_ME_DW_short_avg <- ggplot(data = meq_data, mapping = aes(x = sampling_date_
   facet_grid(.~depth_verbose) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
+plot_ME_DW_june01_avg <- ggplot(data = meq_data,
+                                mapping = aes(x = sampling_date_short,
+                                              y = dw_tissue_june01_avg,
+                                              fill = sampling_date_short)) +
+  theme_bw() +
+  geom_boxplot(outlier.shape = 21,
+               show.legend = FALSE) +
+  ggtitle(label = "*Mytilus edulis* dry weight over time per depth",
+          subtitle = "Using avg cup weights of 01 June (excl. 15 m).") +
+  theme(plot.title = ggtext::element_markdown()) +
+  ylab("Tissue dry weight (g)") +
+  xlab("Sampling occasion") + 
+  scale_fill_brewer(palette = "BrBG") +
+  facet_grid(.~depth_verbose) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+# ----------------------------- CI PLOTS ---------------------------------------
+
 
 plot_ME_CI_orig <- ggplot(data = meq_data, 
-                      mapping = aes(x = sampling_date_short, y = ci_len, fill = sampling_date_short)) +
+                      mapping = aes(x = sampling_date_short, y = ci_len,
+                                    fill = sampling_date_short)) +
   theme_bw() +
   geom_boxplot(outlier.shape = 21,
                show.legend = FALSE)+
-  ggtitle(label = "*Mytilus edulis* condition index per sampling and depth. UNCORRECTED") +
+  ggtitle(label = "*Mytilus edulis* condition index per sampling occasion and depth. UNCORRECTED") +
   theme(plot.title = ggtext::element_markdown()) +
   ylab("Condition index\n(DW tissue / shell length * 100)") +
   xlab("Sampling occasion") +
@@ -204,12 +244,14 @@ plot_ME_CI_orig <- ggplot(data = meq_data,
   guides(fill = guide_legend(title = "Sampling occasion")) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-plot_ME_CI_recalculated <- ggplot(data = meq_data, mapping = aes(x = sampling_date_short, y = ci_len_recalculated,
-                                                                 fill = sampling_date_short)) +
+plot_ME_CI_recalculated <- ggplot(data = meq_data, 
+                                  mapping = aes(x = sampling_date_short,
+                                                y = ci_len_recalculated,
+                                                fill = sampling_date_short)) +
   theme_bw() +
   geom_boxplot(outlier.shape = 21,
                show.legend = FALSE) +
-  ggtitle(label = "*Mytilus edulis* condition index per sampling and depth.",
+  ggtitle(label = "*Mytilus edulis* condition index per sampling occasion and depth.",
           subtitle = "Using +1 correction where cup weight < 1.") +
   theme(plot.title = ggtext::element_markdown()) +
   ylab("Condition index\n(DW tissue / length)") +
@@ -218,8 +260,10 @@ plot_ME_CI_recalculated <- ggplot(data = meq_data, mapping = aes(x = sampling_da
   facet_grid(.~depth_verbose) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
 
-plot_ME_CI_w_cup_avg <- ggplot(data = meq_data, mapping = aes(x = sampling_date_short, y = ci_len_using_cup_avg,
-                                                              fill = sampling_date_short)) +
+plot_ME_CI_w_cup_avg <- ggplot(data = meq_data,
+                               mapping = aes(x = sampling_date_short,
+                                             y = ci_len_using_cup_avg,
+                                             fill = sampling_date_short)) +
   theme_bw() +
   geom_boxplot(outlier.shape = 21,
                show.legend = FALSE) +
@@ -232,8 +276,10 @@ plot_ME_CI_w_cup_avg <- ggplot(data = meq_data, mapping = aes(x = sampling_date_
   facet_grid(.~depth_verbose) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-plot_ME_CI_short_avg <- ggplot(data = meq_data, mapping = aes(x = sampling_date_short, y = ci_len_short_avg,
-                                                              fill = sampling_date_short)) +
+plot_ME_CI_short_avg <- ggplot(data = meq_data, 
+                               mapping = aes(x = sampling_date_short,
+                                             y = ci_len_short_avg,
+                                             fill = sampling_date_short)) +
   theme_bw() +
   geom_boxplot(outlier.shape = 21,
                show.legend = FALSE) +
@@ -246,10 +292,30 @@ plot_ME_CI_short_avg <- ggplot(data = meq_data, mapping = aes(x = sampling_date_
   facet_grid(.~depth_verbose) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
+plot_ME_CI_june01_avg <- ggplot(data = meq_data,
+                                mapping = aes(x = sampling_date_short,
+                                              y = ci_len_june01_avg,
+                                              fill = sampling_date_short)) +
+  theme_bw() +
+  geom_boxplot(outlier.shape = 21,
+               show.legend = FALSE) +
+  ggtitle(label = "*Mytilus edulis* condition index over time per depth",
+          subtitle = "Using avg cup weights of 01 June (excl. 15 m).") +
+  theme(plot.title = ggtext::element_markdown()) +
+  ylab("Condition index\n(DW tissue / length)") +
+  xlab("Sampling occasion") + 
+  scale_fill_brewer(palette = "BrBG") +
+  facet_grid(.~depth_verbose) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+# -------------------------- CUP PLOTS -----------------------------------------
 
 
 plot_ME_cups_orig <- ggplot(data = meq_data,
-                         mapping = aes(x = sampling_date_short, y = cup_weight, fill = sampling_date_short)) +
+                         mapping = aes(x = sampling_date_short,
+                                       y = cup_weight,
+                                       fill = sampling_date_short)) +
   theme_bw() +
   geom_boxplot(outlier.shape = 21,
                show.legend = FALSE) +
@@ -261,7 +327,9 @@ plot_ME_cups_orig <- ggplot(data = meq_data,
   scale_fill_brewer(palette = "BrBG")
 
 plot_ME_cups_corrected <- ggplot(data = meq_data,
-                         mapping = aes(x = sampling_date_short, y = cup_weight_corrected, fill = sampling_date_short)) +
+                         mapping = aes(x = sampling_date_short,
+                                       y = cup_weight_corrected,
+                                       fill = sampling_date_short)) +
   theme_bw() +
   facet_grid(.~depth_verbose) +
   geom_boxplot(outlier.shape = 21,
@@ -274,7 +342,9 @@ plot_ME_cups_corrected <- ggplot(data = meq_data,
   scale_fill_brewer(palette = "BrBG")
 
 plot_ME_cups_avg <- ggplot(data = meq_data,
-                                 mapping = aes(x = sampling_date_short, y = cup_weight_avg, fill = sampling_date_short)) +
+                                 mapping = aes(x = sampling_date_short,
+                                               y = cup_weight_avg,
+                                               fill = sampling_date_short)) +
   theme_bw() +
   facet_grid(.~depth_verbose) +
   geom_boxplot(outlier.shape = 21,
@@ -287,7 +357,9 @@ plot_ME_cups_avg <- ggplot(data = meq_data,
   scale_fill_brewer(palette = "BrBG")
 
 plot_ME_cups_short_avg <- ggplot(data = meq_data,
-                           mapping = aes(x = sampling_date_short, y = cup_weight_short_avg, fill = sampling_date_short)) +
+                           mapping = aes(x = sampling_date_short,
+                                         y = cup_weight_adjacent_avg,
+                                         fill = sampling_date_short)) +
   theme_bw() +
   facet_grid(.~depth_verbose) +
   geom_boxplot(outlier.shape = 21,
@@ -300,13 +372,31 @@ plot_ME_cups_short_avg <- ggplot(data = meq_data,
   scale_fill_brewer(palette = "BrBG")
 
 
+plot_ME_cups_june01_avg <- ggplot(data = meq_data,
+                                  mapping = aes(x = sampling_date_short,
+                                                y = cup_weight_avg_june01,
+                                                fill = sampling_date_short)) +
+  theme_bw() +
+  facet_grid(.~depth_verbose) +
+  geom_boxplot(outlier.shape = 21,
+               show.legend = FALSE) +
+  ggtitle(label = "Cup weights (corrected)", 
+          subtitle = "Using avg cup weights of 01 June (excl. 15 m).") +
+  ylab("Corrected cup weight (g)") +
+  xlab("Sampling occasion") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  scale_fill_brewer(palette = "BrBG")
+
+
 
 # -------------------------- FINAL PLOTS ---------------------------------------
 
 
 
 plot_ME_DW_final <- ggplot(data = meq_data,
-                           mapping = aes(x = sampling_date_short, y = dw_tissue_recalculated, fill = sampling_date_short)) +
+                           mapping = aes(x = sampling_date_short,
+                                         y = dw_tissue_recalculated,
+                                         fill = sampling_date_short)) +
   theme_bw() +
   geom_boxplot(outlier.shape = 21,
                show.legend = FALSE) +
@@ -320,7 +410,9 @@ plot_ME_DW_final <- ggplot(data = meq_data,
 
 
 plot_ME_CI_final <- ggplot(data = meq_data,
-                           mapping = aes(x = sampling_date_short, y = ci_len_recalculated, fill = sampling_date_short)) +
+                           mapping = aes(x = sampling_date_short,
+                                         y = ci_len_recalculated,
+                                         fill = sampling_date_short)) +
   theme_bw() +
   geom_boxplot(outlier.shape = 21,
                show.legend = FALSE) +
@@ -333,20 +425,24 @@ plot_ME_CI_final <- ggplot(data = meq_data,
   scale_fill_brewer(palette = "BrBG")
 
 
+
 grid.arrange(plot_ME_cups_orig,
              plot_ME_cups_corrected,
              plot_ME_cups_avg,
              plot_ME_cups_short_avg,
+             plot_ME_cups_june01_avg,
              ncol = 1)
 
 grid.arrange(plot_ME_DW_orig,
              plot_ME_DW_recalculated,
              plot_ME_DW_w_cup_avg,
              plot_ME_DW_short_avg,
+             plot_ME_DW_june01_avg,
              ncol = 1)
 
 grid.arrange(plot_ME_CI_orig,
              plot_ME_CI_recalculated,
              plot_ME_CI_w_cup_avg,
              plot_ME_CI_short_avg,
+             plot_ME_CI_june01_avg,
              ncol = 1)

@@ -430,7 +430,7 @@ log_var[length(log_var) + 1] <- paste("[", now(), "]\tIdentifiers are unique: ",
 
 # ---------------------- REMOVE DUPLICATES -------------------------------------
 len_old <- dim(data_merged)[1]
-data_merged <- distinct(data_merged, datetime, temp, conductivity_raw, depth_m,
+data_merged <- dplyr::distinct(data_merged, datetime, temp, conductivity_raw, depth_m,
                         # If TRUE, keep all variables in .data. If a combination of
                         # ... is not distinct, this keeps the first row of values:
                         .keep_all = TRUE)  
