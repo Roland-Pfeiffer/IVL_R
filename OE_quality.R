@@ -63,8 +63,8 @@ oeq_data$sampling_date <- ymd(oeq_data$sampling_date)
 
 # Add short dates
 short_levels <- unique(oeq_data$sampling_date) %>%
-  format(format = "%b %d")
-oeq_data$sampling_date_short <- factor(format(oeq_data$sampling_date, format = "%b %d"),
+  format(format = "%b. %d")
+oeq_data$sampling_date_short <- factor(format(oeq_data$sampling_date, format = "%b. %d"),
                                        levels = short_levels)
 
 
@@ -84,35 +84,43 @@ plot_OE_cups <- ggplot(data = oeq_data, mapping = aes(x = sampling_date_short, y
   
 
 plot_OE_DW_shell <- ggplot(data = oeq_data,
-                           mapping = aes(x = sampling_date_short, y = dw_shell, fill = sampling_date_short)) +
+                           mapping = aes(x = sampling_date_short,
+                                         y = dw_shell,
+                                         fill = sampling_date_short)) +
   theme_bw()+
   facet_grid(.~depth_verbose) +
-  geom_boxplot(outlier.shape = 21, show.legend = FALSE) +
+  geom_boxplot(outlier.shape = 21,
+               show.legend = FALSE,
+               size = 0.2) +
   ggtitle(label = "*Ostrea edulis* shell dry weight per sampling occasion and depth.") +
   theme(plot.title = ggtext::element_markdown()) +
   xlab("\nSampling occasion (2021)") +
-  ylab("Shell dry weight (g)") +
+  ylab("\nShell dry weight (g)") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
   scale_fill_brewer(palette = "BrBG")
 
 
 
 plot_OE_CI_dw_tissue_dw_shell <- ggplot(data = oeq_data,
-                                        mapping = aes(x = sampling_date_short, y = dw_tissue / dw_shell * 100, fill = sampling_date_short)) +
+                                        mapping = aes(x = sampling_date_short,
+                                                      y = dw_tissue / dw_shell * 100,
+                                                      fill = sampling_date_short)) +
   theme_bw()+
   facet_grid(.~depth_verbose) +
-  geom_boxplot(outlier.shape = 21, show.legend = FALSE) +
+  geom_boxplot(outlier.shape = 21,
+               show.legend = FALSE,
+               size = 0.2) +
   ggtitle(label = "*Ostrea edulis* condition index per sampling occasion and depth.") +
   theme(plot.title = ggtext::element_markdown()) +
   xlab("\nSampling occasion (2021)") +
-  ylab("CI (DW tissue / DW shell)") +
+  ylab("Condition index\n((DW tissue (g) / DW shell (g)) * 100)") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
   scale_fill_brewer(palette = "BrBG")
 
 
 
-plot_OE_cups
-plot_OE_DW_shell
-plot_OE_CI_dw_tissue_dw_shell
+grid.arrange(plot_OE_DW_shell,
+             plot_OE_CI_dw_tissue_dw_shell,
+             ncol = 1)
 
 
