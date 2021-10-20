@@ -10,7 +10,7 @@ library(lubridate)
 library(RColorBrewer)
 library(viridis)
 
-FPATH_OE <- "file:///media/findux/DATA/Documents/IVL/Data/quality_oe_me/OE/Maturation quality OE 2021_final_2021-10-06.csv"
+FPATH_OE <- "file:///media/findux/DATA/Documents/IVL/data/quality_oe_me/OE/Maturation quality OE 2021_final_2021-10-12.csv"
 PLOT_FOLDER <- "/media/findux/DATA/Documents/IVL/Data/quality_oe_me/plots/"
 TSTAMP <- format(now(), format = "_%Y-%m-%d_%H-%M")
 SAVE_PLOTS <- FALSE
@@ -120,7 +120,8 @@ plot_OE_CI_dw_tissue_dw_shell <- ggplot(data = oeq_data,
 
 
 grid.arrange(plot_OE_DW_shell,
-             plot_OE_CI_dw_tissue_dw_shell,
-             ncol = 1)
+             #plot_OE_CI_dw_tissue_dw_shell,
+             ncol = 1, nrow = 2)
 
-
+# ggsave("~/OEQ_DW_only.tiff", width = 297, height = 105, units = "mm", dpi = 300)
+# ggsave("~/OEQ_DW_only.pdf", width = 297, height = 105, units = "mm", dpi = 300)

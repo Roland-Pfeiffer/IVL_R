@@ -15,8 +15,8 @@ library(viridis)
 
 Sys.setlocale("LC_ALL", "en_GB.UTF-8")
 
-FPATH_ME <- "file:///media/findux/DATA/Documents/IVL/Data/quality_oe_me/ME/Maturation quality ME 2021_2021-10-06.csv"
-PLOT_FOLDER <- "/media/findux/DATA/Documents/IVL/Data/quality_oe_me/plots/"
+FPATH_ME <- "file:///media/findux/DATA/Documents/IVL/data/quality_oe_me/ME/Maturation quality ME 2021_2021-10-06_new.csv"
+PLOT_FOLDER <- "/media/findux/DATA/Documents/IVL/data/quality_oe_me/plots/"
 TSTAMP <- format(now(), format = "_%Y-%m-%d_%H-%M")
 SAVE_PLOTS <- FALSE
 COLOR_PALETTE <- c("#00e6e6", "#00CCCC", "#009999", "#006666")
@@ -453,7 +453,10 @@ plot_ME_CI_final <- ggplot(data = meq_data,
   scale_fill_brewer(palette = "BrBG")
 
 
-grid.arrange(plot_ME_DW_final,
+plot_final <-grid.arrange(plot_ME_DW_final,
              plot_ME_CI_final,
              ncol = 1)
 
+savename <- paste(PLOT_FOLDER, "MEQ_final.tiff", sep = "")
+ggsave(savename, plot_final,
+       width = 297, height = 210, units = "mm", dpi = 300)
